@@ -2,11 +2,13 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Ajouter des champs par clic</title>
+  <title>Placement de Champs - Signature TPW</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px; }
-    canvas { border: 1px solid #aaa; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+    canvas { border: 1px solid #aaa; display: block; margin-top: 20px; }
+    .btn { padding: 8px 15px; background: #007BFF; color: white; border: none; margin: 5px; cursor: pointer; }
+    .btn:hover { background: #0056b3; }
     .field-box {
       position: absolute;
       border: 2px dashed red;
@@ -14,6 +16,7 @@
       padding: 4px;
       font-size: 12px;
       cursor: move;
+      z-index: 10;
     }
     .remove-btn {
       position: absolute;
@@ -28,43 +31,55 @@
       height: 20px;
       font-size: 12px;
     }
-    .btn { padding: 10px 15px; background: #007BFF; color: white; border: none; margin: 5px; cursor: pointer; }
-    .btn:hover { background: #0056b3; }
   </style>
 </head>
 <body>
 
-<h1>📄 Creer un document a signer</h1>
+<h1>📄 Interface de Placement - Signature TPW</h1>
+
+<!-- Upload PDF -->
 <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
   <input type="file" name="pdf" accept=".pdf" required>
   <input type="submit" value="Charger le PDF" class="btn">
 </form>
 
-<div id="pdf-container" style="position: relative; display: none;">
-  <p>🖱 Cliquez sur le PDF pour ajouter un champ</p>
-  <canvas id="pdf-canvas"></canvas>
-  <form id="assign-fields-form" action="/define-fields" method="post">
-    <input type="hidden" name="fields_json" id="fields-json">
-    <input type="submit" value="📤 Lancer la signature" class="btn">
-  </form>
+<!-- Choix du type de champ -->
+<div style="margin-top: 15px;">
+  <strong>1. Choisir le type de champ :</strong><br>
+  <button class="btn" onclick="selectType('text')">Zone de texte</button>
+  <button class="btn" onclick="selectType('signature')">Zone de signature</button>
 </div>
 
+<!-- Liste des signataires -->
+<div style="margin-top: 15px;">
+  <strong>2. Ajouter des signataires :</strong>
+  <div id="signataires-list"></div>
+  <input type="email" id="new-email" placeholder="Email du signataire">
+  <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
+</div>
+
+<!-- Canvas PDF + placement champs -->
+<div id="pdf-container" style="position: relative; display: none;">
+  <canvas id="pdf-canvas"></canvas>
+</div>
+
+<!-- Envoi des champs -->
+<form id="assign-fields-form" action="/define-fields" method="post">
+  <input type="hidden" name="fields_json" id="fields-json">
+  <input type="submit" value="📤 Lancer la signature" class="btn">
+</form>
+
 <script>
-/*
-  Script de placement de champs par clic de souris
-  - L'utilisateur clique sur le PDF pour positionner un champ
-  - Un formulaire contextuel demande le type, l'email, et un label
-  - Le champ apparait visuellement a l'endroit choisi
-  - Le formulaire final est envoye avec tous les champs
-*/
 let fields = [];
 let fieldId = 0;
 let scale = 1;
 let currentPdf = null;
+let currentType = null;
+let signataires = [];
 let canvas = document.getElementById('pdf-canvas');
 let container = document.getElementById('pdf-container');
 
-// Charger le PDF
+// Charger PDF
 document.getElementById('upload-form').onsubmit = function(e) {
   e.preventDefault();
   const formData = new FormData(this);
@@ -77,6 +92,7 @@ document.getElementById('upload-form').onsubmit = function(e) {
     });
 };
 
+// Charger le PDF
 function loadPDF(url) {
   const loadingTask = pdfjsLib.getDocument(url);
   loadingTask.promise.then(pdf => {
@@ -90,30 +106,54 @@ function loadPDF(url) {
   });
 }
 
-// Ajouter un champ par clic souris
-// Ajouter un champ en cliquant sur le canvas
+// Choix du type
+function selectType(type) {
+  currentType = type;
+}
+
+// Ajouter un signataire
+function addSignataire() {
+  const email = document.getElementById('new-email').value.trim();
+  if (!email) return;
+  const id = signataires.length;
+  signataires.push({ id, email });
+  updateSignatairesList();
+  document.getElementById('new-email').value = '';
+}
+
+// Afficher les cases a cocher des signataires
+function updateSignatairesList() {
+  const container = document.getElementById('signataires-list');
+  container.innerHTML = "";
+  signataires.forEach(s => {
+    const label = document.createElement('label');
+    label.innerHTML = `<input type="radio" name="signataire" value="${s.email}"> Signataire ${s.id + 1} (${s.email})`;
+    container.appendChild(label);
+    container.appendChild(document.createElement('br'));
+  });
+}
+
+// Ajouter un champ via clic souris
 canvas.addEventListener('click', function(event) {
+  if (!currentType) return alert("Choisissez un type de champ d'abord.");
+
+  const emailRadio = document.querySelector('input[name="signataire"]:checked');
+  if (!emailRadio) return alert("Selectionnez un signataire.");
+  const email = emailRadio.value;
+
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
-
-  const type = prompt("Type de champ (text ou signature) :");
-  if (!type || (type !== 'text' && type !== 'signature')) return;
-
-  const email = prompt("Email du signataire :");
-  if (!email) return;
-
-  const label = prompt("Nom du champ :") || "";
   const id = fieldId++;
 
-  const field = { id, type, email, label, x, y, signed: false };
+  const field = { id, type: currentType, email, x, y, signed: false };
   fields.push(field);
 
   const div = document.createElement('div');
   div.className = 'field-box';
   div.style.left = x + 'px';
   div.style.top = y + 'px';
-  div.innerText = type.toUpperCase() + '\n' + label;
+  div.innerText = currentType.toUpperCase();
 
   const removeBtn = document.createElement('button');
   removeBtn.innerText = '×';
@@ -125,45 +165,41 @@ canvas.addEventListener('click', function(event) {
   };
 
   div.appendChild(removeBtn);
-  div.style.position = 'absolute';
-  div.style.zIndex = 10;
   container.appendChild(div);
-
   enableDrag(div, id);
 });
 
 // Rendre les champs deplacables
 function enableDrag(element, id) {
+  let offsetX, offsetY;
   element.onmousedown = function (event) {
-    event.preventDefault();
-    let shiftX = event.clientX - element.getBoundingClientRect().left;
-    let shiftY = event.clientY - element.getBoundingClientRect().top;
+    offsetX = event.clientX - parseInt(element.style.left);
+    offsetY = event.clientY - parseInt(element.style.top);
 
-    function moveAt(pageX, pageY) {
-      element.style.left = pageX - shiftX + 'px';
-      element.style.top = pageY - shiftY + 'px';
-    }
+    function moveAt(e) {
+      const x = e.clientX - offsetX;
+      const y = e.clientY - offsetY;
+      element.style.left = x + 'px';
+      element.style.top = y + 'px';
 
-    function onMouseMove(event) {
-      moveAt(event.pageX, event.pageY);
-    }
-
-    document.addEventListener('mousemove', onMouseMove);
-    element.onmouseup = function () {
-      document.removeEventListener('mousemove', onMouseMove);
-      element.onmouseup = null;
       const updated = fields.find(f => f.id === id);
-      updated.x = parseInt(element.style.left);
-      updated.y = parseInt(element.style.top);
+      if (updated) {
+        updated.x = x;
+        updated.y = y;
+      }
+    }
+
+    function onMouseMove(e) { moveAt(e); }
+    document.addEventListener('mousemove', onMouseMove);
+    document.onmouseup = function () {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.onmouseup = null;
     };
   };
-  element.ondragstart = function () {
-    return false;
-  };
+  element.ondragstart = () => false;
 }
 
-// Envoyer le formulaire avec les champs
-// Envoi du JSON avec tous les champs au backend
+// Preparer le JSON pour envoi
 document.getElementById('assign-fields-form').onsubmit = function () {
   document.getElementById('fields-json').value = JSON.stringify({
     pdf: currentPdf,
