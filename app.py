@@ -6,14 +6,12 @@ import json
 import smtplib
 import base64
 from email.message import EmailMessage
-from email.mime.base import MIMEBase
-from email import encoders
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.lib.pagesizes import letter
 from dotenv import load_dotenv
 import io
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 load_dotenv()
 
@@ -47,18 +45,19 @@ def uploaded_file(filename):
 @app.route('/save-template', methods=['POST'])
 def save_template():
     data = request.get_json()
-    name = data['name']
-    template_data = {
-        'pdf': data['pdf'],
-        'fields': data['fields']
-    }
+    name = data.get('name')
+    if not name:
+        return jsonify({'error': 'Nom de template requis'}), 400
     with open(os.path.join(TEMPLATES_FOLDER, f"{name}.json"), 'w') as f:
-        json.dump(template_data, f)
+        json.dump({'pdf': data['pdf'], 'fields': data['fields']}, f)
     return jsonify({'status': 'saved'})
 
 @app.route('/load-template/<name>')
 def load_template(name):
-    with open(os.path.join(TEMPLATES_FOLDER, f"{name}.json")) as f:
+    path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
+    if not os.path.exists(path):
+        return jsonify({'error': 'Template introuvable'}), 404
+    with open(path) as f:
         return jsonify(json.load(f))
 
 @app.route('/define-fields', methods=['POST'])
@@ -68,21 +67,17 @@ def define_fields():
     session_id = str(uuid.uuid4())
     pdf_file = data['pdf']
     fields = data['fields']
-
     for field in fields:
         field['signed'] = False
         field['value'] = ''
-
     session_data = {
         'pdf': pdf_file,
         'fields': fields,
         'current': 0,
         'email_message': message
     }
-
     with open(os.path.join(SESSION_FOLDER, f'{session_id}.json'), 'w') as f:
         json.dump(session_data, f)
-
     send_email(session_id, 0)
     return f"Processus lancé. Le premier signataire a été notifié."
 
@@ -91,7 +86,6 @@ def sign(session_id, step):
     session_path = os.path.join(SESSION_FOLDER, f'{session_id}.json')
     with open(session_path) as f:
         session_data = json.load(f)
-
     field = session_data['fields'][step]
     pdf_filename = session_data['pdf']
     pdf_path = os.path.join(UPLOAD_FOLDER, pdf_filename)
@@ -113,25 +107,27 @@ def sign(session_id, step):
                 draw = ImageDraw.Draw(img)
                 draw.text((10, 30), request.form['signature_text'], fill='black')
                 img.save(sig_path)
-
             new_pdf_path = os.path.join(UPLOAD_FOLDER, f"signed_{uuid.uuid4()}.pdf")
             apply_signature(pdf_path, sig_path, new_pdf_path, field['x'], field['y'])
             session_data['pdf'] = os.path.basename(new_pdf_path)
 
         field['signed'] = True
         session_data['current'] += 1
-
         with open(session_path, 'w') as f:
             json.dump(session_data, f)
 
         if session_data['current'] < len(session_data['fields']):
             send_email(session_id, session_data['current'])
-            return "Champ enregistré. Prochaine personne notifiée."
+            return "Champ validé. Prochaine personne notifiée."
         else:
             send_pdf_to_all(session_data)
-            return f"Toutes les entrées sont complétées. <a href='/download/{session_data['pdf']}'>Télécharger le PDF</a>"
+            return f"Toutes les signatures sont terminées. <a href='/download/{session_data['pdf']}'>Télécharger</a>"
 
-    return render_template('sign.html', email=field['email'], fields=[field], pdf=pdf_filename)
+    return render_template('sign.html',
+                           email=field['email'],
+                           fields=[field],
+                           pdf=pdf_filename,
+                           fields_all=session_data['fields'])
 
 @app.route('/session/<session_id>/status')
 def status(session_id):
@@ -181,14 +177,13 @@ def send_email(session_id, step):
     with open(os.path.join(SESSION_FOLDER, f'{session_id}.json')) as f:
         data = json.load(f)
     recipient = data['fields'][step]['email']
-    custom_message = data.get('email_message', '')
+    message = data.get('email_message', '')
     app_url = os.getenv('APP_URL', 'http://localhost:5000')
-
     msg = EmailMessage()
     msg['Subject'] = 'Champ à remplir - Signature PDF'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"{custom_message}\n\nLien de signature : {app_url}/sign/{session_id}/{step}")
+    msg.set_content(f"{message}\n\nAccédez à votre page de signature ici : {app_url}/sign/{session_id}/{step}")
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
@@ -196,7 +191,7 @@ def send_email(session_id, step):
             server.send_message(msg)
     except Exception as e:
         with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] Email vers {recipient} echoue: {e}\n")
+            log.write(f"[ERROR] Email échoué vers {recipient} : {e}\n")
 
 def send_pdf_to_all(session_data):
     with open(os.path.join(UPLOAD_FOLDER, session_data['pdf']), 'rb') as f:
@@ -208,7 +203,7 @@ def send_pdf_to_all(session_data):
             msg['Subject'] = 'Document signé complet'
             msg['From'] = os.getenv('SMTP_USER')
             msg['To'] = recipient
-            msg.set_content('Voici le PDF signé.')
+            msg.set_content('Voici le document final signé.')
             msg.add_attachment(file_data, maintype='application', subtype='pdf', filename=session_data['pdf'])
             try:
                 with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
@@ -217,7 +212,7 @@ def send_pdf_to_all(session_data):
                     server.send_message(msg)
             except Exception as e:
                 with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                    log.write(f"[ERROR] Envoi final PDF vers {recipient} echoue: {e}\n")
+                    log.write(f"[ERROR] Envoi final échoué vers {recipient} : {e}\n")
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
