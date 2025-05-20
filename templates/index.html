@@ -1,8 +1,9 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Placement de Champs - Signature TPW</title>
+  <title>Création de formulaire - PDF Signature</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
@@ -35,38 +36,58 @@
 </head>
 <body>
 
-<h1>📄 Interface de Placement - Signature TPW</h1>
+<h1>📄 Création d’un formulaire à signer</h1>
 
-<!-- Upload PDF -->
 <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
   <input type="file" name="pdf" accept=".pdf" required>
   <input type="submit" value="Charger le PDF" class="btn">
 </form>
 
-<!-- Choix du type de champ -->
+<!-- Type de champ -->
 <div style="margin-top: 15px;">
-  <strong>1. Choisir le type de champ :</strong><br>
+  <strong>Type de champ :</strong><br>
   <button class="btn" onclick="selectType('text')">Zone de texte</button>
   <button class="btn" onclick="selectType('signature')">Zone de signature</button>
 </div>
 
-<!-- Liste des signataires -->
+<!-- Signataires -->
 <div style="margin-top: 15px;">
-  <strong>2. Ajouter des signataires :</strong>
+  <strong>Ajouter des signataires :</strong>
   <div id="signataires-list"></div>
   <input type="email" id="new-email" placeholder="Email du signataire">
   <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
 </div>
 
-<!-- Canvas PDF + placement champs -->
+<!-- Message personnalisé -->
+<div style="margin-top: 15px;">
+  <strong>Message email :</strong><br>
+  <textarea id="email-message" placeholder="Entrez ici le message qui accompagnera l’email..." rows="3" cols="60"></textarea>
+</div>
+
+<!-- Templates -->
+<div style="margin-top: 15px;">
+  <strong>Templates :</strong><br>
+  <input type="text" id="template-name" placeholder="Nom du template">
+  <button class="btn" onclick="saveTemplate()">💾 Sauvegarder comme template</button>
+  <select id="template-select">
+    <option disabled selected>-- Charger un template --</option>
+    {% for t in templates %}
+      <option value="{{ t }}">{{ t }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn" onclick="loadTemplate()">📂 Charger</button>
+</div>
+
+<!-- Canvas PDF -->
 <div id="pdf-container" style="position: relative; display: none;">
   <canvas id="pdf-canvas"></canvas>
 </div>
 
-<!-- Envoi des champs -->
+<!-- Formulaire final -->
 <form id="assign-fields-form" action="/define-fields" method="post">
   <input type="hidden" name="fields_json" id="fields-json">
-  <input type="submit" value="📤 Lancer la signature" class="btn">
+  <input type="hidden" name="email_message" id="email-message-hidden">
+  <input type="submit" value="📤 Lancer le processus de signature" class="btn">
 </form>
 
 <script>
@@ -79,7 +100,7 @@ let signataires = [];
 let canvas = document.getElementById('pdf-canvas');
 let container = document.getElementById('pdf-container');
 
-// Charger PDF
+// Upload PDF
 document.getElementById('upload-form').onsubmit = function(e) {
   e.preventDefault();
   const formData = new FormData(this);
@@ -92,7 +113,6 @@ document.getElementById('upload-form').onsubmit = function(e) {
     });
 };
 
-// Charger le PDF
 function loadPDF(url) {
   const loadingTask = pdfjsLib.getDocument(url);
   loadingTask.promise.then(pdf => {
@@ -106,12 +126,8 @@ function loadPDF(url) {
   });
 }
 
-// Choix du type
-function selectType(type) {
-  currentType = type;
-}
+function selectType(type) { currentType = type; }
 
-// Ajouter un signataire
 function addSignataire() {
   const email = document.getElementById('new-email').value.trim();
   if (!email) return;
@@ -121,7 +137,6 @@ function addSignataire() {
   document.getElementById('new-email').value = '';
 }
 
-// Afficher les cases a cocher des signataires
 function updateSignatairesList() {
   const container = document.getElementById('signataires-list');
   container.innerHTML = "";
@@ -133,28 +148,22 @@ function updateSignatairesList() {
   });
 }
 
-// Ajouter un champ via clic souris
 canvas.addEventListener('click', function(event) {
-  if (!currentType) return alert("Choisissez un type de champ d'abord.");
-
+  if (!currentType) return alert("Choisissez un type de champ.");
   const emailRadio = document.querySelector('input[name="signataire"]:checked');
-  if (!emailRadio) return alert("Selectionnez un signataire.");
+  if (!emailRadio) return alert("Sélectionnez un signataire.");
   const email = emailRadio.value;
-
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
   const id = fieldId++;
-
   const field = { id, type: currentType, email, x, y, signed: false };
   fields.push(field);
-
   const div = document.createElement('div');
   div.className = 'field-box';
   div.style.left = x + 'px';
   div.style.top = y + 'px';
   div.innerText = currentType.toUpperCase();
-
   const removeBtn = document.createElement('button');
   removeBtn.innerText = '×';
   removeBtn.className = 'remove-btn';
@@ -163,32 +172,24 @@ canvas.addEventListener('click', function(event) {
     if (index !== -1) fields.splice(index, 1);
     div.remove();
   };
-
   div.appendChild(removeBtn);
   container.appendChild(div);
   enableDrag(div, id);
 });
 
-// Rendre les champs deplacables
 function enableDrag(element, id) {
   let offsetX, offsetY;
   element.onmousedown = function (event) {
     offsetX = event.clientX - parseInt(element.style.left);
     offsetY = event.clientY - parseInt(element.style.top);
-
     function moveAt(e) {
       const x = e.clientX - offsetX;
       const y = e.clientY - offsetY;
       element.style.left = x + 'px';
       element.style.top = y + 'px';
-
       const updated = fields.find(f => f.id === id);
-      if (updated) {
-        updated.x = x;
-        updated.y = y;
-      }
+      if (updated) { updated.x = x; updated.y = y; }
     }
-
     function onMouseMove(e) { moveAt(e); }
     document.addEventListener('mousemove', onMouseMove);
     document.onmouseup = function () {
@@ -199,13 +200,60 @@ function enableDrag(element, id) {
   element.ondragstart = () => false;
 }
 
-// Preparer le JSON pour envoi
 document.getElementById('assign-fields-form').onsubmit = function () {
   document.getElementById('fields-json').value = JSON.stringify({
     pdf: currentPdf,
     fields: fields
   });
+  document.getElementById('email-message-hidden').value = document.getElementById('email-message').value;
 };
+
+// Sauvegarder un template
+function saveTemplate() {
+  const name = document.getElementById('template-name').value.trim();
+  if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
+  fetch('/save-template', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, pdf: currentPdf, fields: fields })
+  }).then(res => res.json()).then(r => alert("Template enregistré."));
+}
+
+// Charger un template
+function loadTemplate() {
+  const name = document.getElementById('template-select').value;
+  fetch('/load-template/' + name)
+    .then(res => res.json())
+    .then(data => {
+      fields = [];
+      currentPdf = data.pdf;
+      document.getElementById('pdf-container').style.display = 'block';
+      loadPDF('/uploads/' + currentPdf);
+      setTimeout(() => {
+        data.fields.forEach(field => {
+          const id = fieldId++;
+          field.id = id;
+          fields.push(field);
+          const div = document.createElement('div');
+          div.className = 'field-box';
+          div.style.left = field.x + 'px';
+          div.style.top = field.y + 'px';
+          div.innerText = field.type.toUpperCase();
+          const removeBtn = document.createElement('button');
+          removeBtn.innerText = '×';
+          removeBtn.className = 'remove-btn';
+          removeBtn.onclick = function() {
+            const index = fields.findIndex(f => f.id === id);
+            if (index !== -1) fields.splice(index, 1);
+            div.remove();
+          };
+          div.appendChild(removeBtn);
+          container.appendChild(div);
+          enableDrag(div, id);
+        });
+      }, 500);
+    });
+}
 </script>
 
 </body>
