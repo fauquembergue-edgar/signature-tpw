@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -5,6 +6,9 @@
   <title>Signature requise</title>
   <style>
     body { font-family: Arial, sans-serif; background-color: #f2f2f2; padding: 40px; }
+    table { border-collapse: collapse; width: 100%; background-color: white; margin-bottom: 20px; }
+    th, td { padding: 10px; border: 1px solid #ccc; text-align: left; }
+    th { background-color: #007BFF; color: white; }
     form {
       background: white; padding: 20px; border-radius: 8px;
       box-shadow: 0px 2px 6px rgba(0,0,0,0.1); max-width: 500px;
@@ -14,39 +18,55 @@
       border: 1px solid #ccc; border-radius: 4px;
     }
     input[type="submit"] {
-      background-color: #007BFF; color: white;
+      background-color: #28a745; color: white;
       padding: 10px 15px; border: none;
       border-radius: 4px; cursor: pointer;
+      margin-top: 10px;
     }
     canvas { border: 1px solid #ccc; margin-top: 10px; }
   </style>
 </head>
 <body>
-  <h1>Bonjour {{ email }}</h1>
-  <form method="post" enctype="multipart/form-data">
-    {% for field in fields %}
-      {% if field.type == 'text' %}
-        <p>Zone texte :</p>
-        <input type="text" name="text_{{ loop.index0 }}" required>
-      {% elif field.type == 'signature' %}
-        <p>Choisissez le mode de signature :</p>
-        <label><input type="radio" name="sig_mode" value="draw" checked> Dessiner</label>
-        <label><input type="radio" name="sig_mode" value="text"> Taper votre nom</label>
 
-        <div id="draw-container">
-          <canvas id="sig-canvas" width="400" height="150"></canvas>
-          <input type="hidden" name="signature_drawn" id="signature_drawn">
-        </div>
+<h1>Signature pour : {{ email }}</h1>
 
-        <div id="text-container" style="display:none;">
-          <input type="text" name="signature_text" placeholder="Nom et prénom">
-        </div>
-      {% endif %}
-    {% endfor %}
-    <input type="submit" value="Valider">
-  </form>
-  <hr>
-  <embed src="/uploads/{{ pdf }}" width="100%" height="600px" type="application/pdf">
+<h3>Statut des signatures :</h3>
+<table>
+  <tr><th>Email</th><th>Type</th><th>Statut</th></tr>
+  {% for f in fields_all %}
+    <tr>
+      <td>{{ f.email }}</td>
+      <td>{{ f.type }}</td>
+      <td>{% if f.signed %}✅ Signé{% else %}⏳ En attente{% endif %}</td>
+    </tr>
+  {% endfor %}
+</table>
+
+<form method="post" enctype="multipart/form-data">
+  {% for field in fields %}
+    {% if field.type == 'text' %}
+      <p>Zone texte :</p>
+      <input type="text" name="text_{{ loop.index0 }}" required>
+    {% elif field.type == 'signature' %}
+      <p>Choisissez le mode de signature :</p>
+      <label><input type="radio" name="sig_mode" value="draw" checked> Dessiner</label>
+      <label><input type="radio" name="sig_mode" value="text"> Taper votre nom</label>
+
+      <div id="draw-container">
+        <canvas id="sig-canvas" width="400" height="150"></canvas>
+        <input type="hidden" name="signature_drawn" id="signature_drawn">
+      </div>
+
+      <div id="text-container" style="display:none;">
+        <input type="text" name="signature_text" placeholder="Nom et prénom">
+      </div>
+    {% endif %}
+  {% endfor %}
+  <input type="submit" value="Valider et envoyer">
+</form>
+
+<hr>
+<embed src="/uploads/{{ pdf }}" width="100%" height="600px" type="application/pdf">
 
 <script>
 const drawContainer = document.getElementById('draw-container');
@@ -64,27 +84,29 @@ document.querySelectorAll('input[name="sig_mode"]').forEach(r => {
 });
 
 const canvas = document.getElementById('sig-canvas');
-const ctx = canvas.getContext('2d');
-let drawing = false;
-canvas.onmousedown = () => { drawing = true; ctx.beginPath(); };
-canvas.onmouseup = () => { drawing = false; };
-canvas.onmousemove = e => {
-  if (!drawing) return;
-  const rect = canvas.getBoundingClientRect();
-  ctx.lineWidth = 2;
-  ctx.lineCap = "round";
-  ctx.strokeStyle = "black";
-  ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-};
+if (canvas) {
+  const ctx = canvas.getContext('2d');
+  let drawing = false;
+  canvas.onmousedown = () => { drawing = true; ctx.beginPath(); };
+  canvas.onmouseup = () => { drawing = false; };
+  canvas.onmousemove = e => {
+    if (!drawing) return;
+    const rect = canvas.getBoundingClientRect();
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "black";
+    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+  };
 
-document.querySelector('form').onsubmit = function () {
-  if (document.querySelector('input[name="sig_mode"]:checked').value === 'draw') {
-    document.getElementById('signature_drawn').value = canvas.toDataURL("image/png");
-  }
-};
+  document.querySelector('form').onsubmit = function () {
+    if (document.querySelector('input[name="sig_mode"]:checked').value === 'draw') {
+      document.getElementById('signature_drawn').value = canvas.toDataURL("image/png");
+    }
+  };
+}
 </script>
 </body>
 </html>
