@@ -1,0 +1,77 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Signature requise</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f2f2f2;
+      padding: 40px;
+    }
+    h1 {
+      color: #333;
+    }
+    form {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
+      max-width: 500px;
+      margin-bottom: 20px;
+    }
+    label {
+      font-weight: bold;
+    }
+    input[type="text"],
+    input[type="file"] {
+      width: 100%;
+      margin-bottom: 15px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    input[type="submit"] {
+      background-color: #007BFF;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    input[type="submit"]:hover {
+      background-color: #0056b3;
+    }
+    .pdf-preview {
+      border: 1px solid #aaa;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Bonjour {{ email }}</h1>
+  <p>Veuillez remplir et/ou signer les champs qui vous sont assignes.</p>
+
+  <!-- Formulaire de saisie ou de signature -->
+  <form method="post" enctype="multipart/form-data">
+    {% for field in fields %}
+      {% if field.type == 'text' %}
+        <!-- Champ texte -->
+        <label for="text_{{ loop.index0 }}">Champ texte : {{ field.label or "texte" }}</label>
+        <input type="text" name="text_{{ loop.index0 }}" required>
+      {% elif field.type == 'signature' %}
+        <!-- Champ signature -->
+        <label for="signature_{{ loop.index0 }}">Ajouter votre signature (PNG uniquement)</label>
+        <input type="file" name="signature_{{ loop.index0 }}" accept="image/png" required>
+      {% endif %}
+    {% endfor %}
+    <input type="submit" value="Valider">
+  </form>
+
+  <!-- Apercu du document PDF -->
+  <embed class="pdf-preview" src="/uploads/{{ pdf }}" width="100%" height="600px" type="application/pdf">
+
+</body>
+</html>

@@ -1,0 +1,194 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Portail de Signature TPW</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+  <style>
+    /* Styles generaux */
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+    h1 { color: #333; }
+
+    /* Affichage PDF */
+    #pdf-canvas { border: 1px solid #aaa; margin-top: 20px; }
+
+    /* Boutons */
+    .btn {
+      padding: 10px 15px;
+      background: #007BFF;
+      color: white;
+      border: none;
+      margin: 5px;
+      cursor: pointer;
+    }
+    .btn:hover { background: #0056b3; }
+
+    /* Champs places */
+    .field-box {
+      position: absolute;
+      border: 2px dashed red;
+      background: white;
+      padding: 4px;
+      font-size: 12px;
+      cursor: move;
+    }
+
+    /* Bouton pour supprimer un champ */
+    .remove-btn {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      width: 20px;
+      height: 20px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📄 Creer un document a signer</h1>
+  <p>1. Importez un document PDF</p>
+
+  <!-- Formulaire d'upload -->
+  <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="pdf" accept=".pdf" required>
+    <input type="submit" value="Charger" class="btn">
+  </form>
+
+  <!-- Conteneur du PDF et des outils -->
+  <div id="pdf-container" style="position: relative; display: none;">
+    <p>2. Ajoutez des champs a faire remplir par email</p>
+    <canvas id="pdf-canvas"></canvas>
+
+    <div style="margin-top: 10px;">
+      <!-- Boutons pour ajouter des champs -->
+      <button class="btn" onclick="addField('signature')">➕ Signature</button>
+      <button class="btn" onclick="addField('text')">➕ Texte</button>
+    </div>
+
+    <!-- Formulaire d'envoi du schema -->
+    <form id="assign-fields-form" action="/define-fields" method="post">
+      <input type="hidden" name="fields_json" id="fields-json">
+      <input type="submit" value="📤 Lancer la signature" class="btn">
+    </form>
+  </div>
+
+<script>
+let fields = [];           // Liste des champs ajoutes
+let fieldId = 0;           // Identifiant unique par champ
+let scale = 1;             // Echelle de rendu du PDF
+let currentPdf = null;     // Fichier PDF courant
+
+// Envoi du PDF au serveur
+document.getElementById('upload-form').onsubmit = function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  fetch('/upload', { method: 'POST', body: formData })
+    .then(res => res.json())
+    .then(data => {
+      currentPdf = data.filename;
+      document.getElementById('pdf-container').style.display = 'block';
+      loadPDF('/uploads/' + data.filename);
+    });
+};
+
+// Charger le PDF via PDF.js
+function loadPDF(url) {
+  const loadingTask = pdfjsLib.getDocument(url);
+  loadingTask.promise.then(pdf => {
+    pdf.getPage(1).then(page => {
+      const viewport = page.getViewport({ scale: scale });
+      const canvas = document.getElementById('pdf-canvas');
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      const renderContext = { canvasContext: context, viewport: viewport };
+      page.render(renderContext);
+    });
+  });
+}
+
+// Ajouter un champ a l'ecran
+function addField(type) {
+  const email = prompt("Email du signataire :");
+  if (!email) return;
+
+  const label = prompt("Nom du champ :") || "";
+  const x = parseInt(prompt("Position X (px) :", "100"));
+  const y = parseInt(prompt("Position Y (px) :", "100"));
+  const id = fieldId++;
+
+  const field = { id, type, email, label, x, y, signed: false };
+  fields.push(field);
+
+  const div = document.createElement('div');
+  div.className = 'field-box';
+  div.style.left = x + 'px';
+  div.style.top = y + 'px';
+  div.setAttribute('data-id', id);
+  div.setAttribute('draggable', 'true');
+  div.innerText = type.toUpperCase() + '\n' + label;
+
+  // Bouton pour supprimer le champ
+  const removeBtn = document.createElement('button');
+  removeBtn.innerText = '×';
+  removeBtn.className = 'remove-btn';
+  removeBtn.onclick = function() {
+    const index = fields.findIndex(f => f.id === id);
+    if (index !== -1) fields.splice(index, 1);
+    div.remove();
+  };
+
+  div.appendChild(removeBtn);
+  enableDrag(div, id);
+  document.getElementById('pdf-container').appendChild(div);
+}
+
+// Rendre un champ deplacable
+function enableDrag(element, id) {
+  element.onmousedown = function (event) {
+    event.preventDefault();
+    let shiftX = event.clientX - element.getBoundingClientRect().left;
+    let shiftY = event.clientY - element.getBoundingClientRect().top;
+
+    function moveAt(pageX, pageY) {
+      element.style.left = pageX - shiftX + 'px';
+      element.style.top = pageY - shiftY + 'px';
+    }
+
+    function onMouseMove(event) {
+      moveAt(event.pageX, event.pageY);
+    }
+
+    document.addEventListener('mousemove', onMouseMove);
+    element.onmouseup = function () {
+      document.removeEventListener('mousemove', onMouseMove);
+      element.onmouseup = null;
+
+      // Mettre a jour les coordonnees
+      const updated = fields.find(f => f.id === id);
+      updated.x = parseInt(element.style.left);
+      updated.y = parseInt(element.style.top);
+    };
+  };
+  element.ondragstart = function () {
+    return false;
+  };
+}
+
+// Preparer le JSON a envoyer avec tous les champs
+document.getElementById('assign-fields-form').onsubmit = function () {
+  document.getElementById('fields-json').value = JSON.stringify({
+    pdf: currentPdf,
+    fields: fields
+  });
+};
+</script>
+</body>
+</html>
