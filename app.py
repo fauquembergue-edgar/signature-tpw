@@ -1,5 +1,5 @@
 
-from flask import Flask, request, render_template, send_from_directory, redirect, jsonify
+from flask import Flask, request, render_template, send_from_directory, jsonify
 import os
 import uuid
 import json
@@ -11,22 +11,22 @@ from reportlab.lib.pagesizes import letter
 from dotenv import load_dotenv
 import io
 
-# Charger les variables d'environnement depuis le fichier .env
 load_dotenv()
 
 app = Flask(__name__)
-
-# Dossiers de travail
 UPLOAD_FOLDER = 'uploads'
 SESSION_FOLDER = 'sessions'
+TEMPLATES_FOLDER = 'templates_data'
 LOG_FOLDER = 'logs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(SESSION_FOLDER, exist_ok=True)
+os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
 os.makedirs(LOG_FOLDER, exist_ok=True)
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    templates = [f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')]
+    return render_template('index.html', templates=templates)
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -40,9 +40,27 @@ def upload():
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
+@app.route('/save-template', methods=['POST'])
+def save_template():
+    data = request.get_json()
+    name = data['name']
+    template_data = {
+        'pdf': data['pdf'],
+        'fields': data['fields']
+    }
+    with open(os.path.join(TEMPLATES_FOLDER, f"{name}.json"), 'w') as f:
+        json.dump(template_data, f)
+    return jsonify({'status': 'saved'})
+
+@app.route('/load-template/<name>')
+def load_template(name):
+    with open(os.path.join(TEMPLATES_FOLDER, f"{name}.json")) as f:
+        return jsonify(json.load(f))
+
 @app.route('/define-fields', methods=['POST'])
 def define_fields():
     data = json.loads(request.form['fields_json'])
+    message = request.form.get('email_message', '')
     session_id = str(uuid.uuid4())
     pdf_file = data['pdf']
     fields = data['fields']
@@ -54,14 +72,15 @@ def define_fields():
     session_data = {
         'pdf': pdf_file,
         'fields': fields,
-        'current': 0
+        'current': 0,
+        'email_message': message
     }
 
     with open(os.path.join(SESSION_FOLDER, f'{session_id}.json'), 'w') as f:
         json.dump(session_data, f)
 
     send_email(session_id, 0)
-    return f"Processus lance. Le premier signataire a ete notifie."
+    return f"Processus lancé. Le premier signataire a été notifié."
 
 @app.route('/sign/<session_id>/<int:step>', methods=['GET', 'POST'])
 def sign(session_id, step):
@@ -92,14 +111,11 @@ def sign(session_id, step):
         with open(session_path, 'w') as f:
             json.dump(session_data, f)
 
-        with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"{field['email']} a complete le champ {step} dans la session {session_id}\n")
-
         if session_data['current'] < len(session_data['fields']):
             send_email(session_id, session_data['current'])
-            return "Champ enregistre. Prochaine personne notifiee."
+            return "Champ enregistré. Prochaine personne notifiée."
         else:
-            return f"Toutes les entrees sont completes. <a href='/download/{session_data['pdf']}'>Telecharger le PDF</a>"
+            return f"Toutes les entrées sont complétées. <a href='/download/{session_data['pdf']}'>Télécharger le PDF</a>"
 
     return render_template('sign.html', email=field['email'], fields=[field], pdf=pdf_filename)
 
@@ -151,11 +167,14 @@ def send_email(session_id, step):
     with open(os.path.join(SESSION_FOLDER, f'{session_id}.json')) as f:
         data = json.load(f)
     recipient = data['fields'][step]['email']
+    custom_message = data.get('email_message', '')
+
     msg = EmailMessage()
-    msg['Subject'] = 'Champ a remplir dans un document'
+    msg['Subject'] = 'Champ à remplir - Signature PDF'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"Bonjour, veuillez completer ce champ : https://votre-url-deploiement.onrender.com/sign/{session_id}/{step}")
+    app_url = os.getenv('APP_URL', 'http://localhost:5000')
+    msg.set_content(f"{custom_message}\n\nLien de signature : {app_url}/sign/{session_id}/{step}")
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
@@ -163,9 +182,8 @@ def send_email(session_id, step):
             server.send_message(msg)
     except Exception as e:
         with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] Email vers {recipient} echoue: {e}\n")
+            log.write(f"[ERROR] Email vers {recipient} echoué: {e}\n")
 
-# Important pour que Render detecte le port a utiliser
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
