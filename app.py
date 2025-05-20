@@ -4,12 +4,16 @@ import os
 import uuid
 import json
 import smtplib
+import base64
 from email.message import EmailMessage
+from email.mime.base import MIMEBase
+from email import encoders
 from PyPDF2 import PdfReader, PdfWriter
-from reportlab.pdfgen import canvas
+from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.lib.pagesizes import letter
 from dotenv import load_dotenv
 import io
+from PIL import Image, ImageDraw, ImageFont
 
 load_dotenv()
 
@@ -98,9 +102,18 @@ def sign(session_id, step):
             field['value'] = value
             apply_text(pdf_path, field['x'], field['y'], value)
         elif field['type'] == 'signature':
-            sig = request.files[f'signature_{step}']
+            sig_mode = request.form.get('sig_mode')
             sig_path = os.path.join(UPLOAD_FOLDER, f'{session_id}_sig_{step}.png')
-            sig.save(sig_path)
+            if sig_mode == 'draw':
+                sig_data = request.form['signature_drawn'].split(',')[1]
+                with open(sig_path, 'wb') as f:
+                    f.write(base64.b64decode(sig_data))
+            elif sig_mode == 'text':
+                img = Image.new('RGBA', (400, 100), (255, 255, 255, 0))
+                draw = ImageDraw.Draw(img)
+                draw.text((10, 30), request.form['signature_text'], fill='black')
+                img.save(sig_path)
+
             new_pdf_path = os.path.join(UPLOAD_FOLDER, f"signed_{uuid.uuid4()}.pdf")
             apply_signature(pdf_path, sig_path, new_pdf_path, field['x'], field['y'])
             session_data['pdf'] = os.path.basename(new_pdf_path)
@@ -115,6 +128,7 @@ def sign(session_id, step):
             send_email(session_id, session_data['current'])
             return "Champ enregistré. Prochaine personne notifiée."
         else:
+            send_pdf_to_all(session_data)
             return f"Toutes les entrées sont complétées. <a href='/download/{session_data['pdf']}'>Télécharger le PDF</a>"
 
     return render_template('sign.html', email=field['email'], fields=[field], pdf=pdf_filename)
@@ -134,7 +148,7 @@ def apply_signature(pdf_path, sig_path, output_path, x, y):
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
+    can = pdfcanvas.Canvas(packet, pagesize=letter)
     can.drawImage(sig_path, x, y, width=100, height=50)
     can.save()
     packet.seek(0)
@@ -150,7 +164,7 @@ def apply_text(pdf_path, x, y, text):
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
+    can = pdfcanvas.Canvas(packet, pagesize=letter)
     can.setFont("Helvetica", 12)
     can.drawString(x, y, text)
     can.save()
@@ -168,12 +182,12 @@ def send_email(session_id, step):
         data = json.load(f)
     recipient = data['fields'][step]['email']
     custom_message = data.get('email_message', '')
+    app_url = os.getenv('APP_URL', 'http://localhost:5000')
 
     msg = EmailMessage()
     msg['Subject'] = 'Champ à remplir - Signature PDF'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    app_url = os.getenv('APP_URL', 'http://localhost:5000')
     msg.set_content(f"{custom_message}\n\nLien de signature : {app_url}/sign/{session_id}/{step}")
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
@@ -182,7 +196,28 @@ def send_email(session_id, step):
             server.send_message(msg)
     except Exception as e:
         with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] Email vers {recipient} echoué: {e}\n")
+            log.write(f"[ERROR] Email vers {recipient} echoue: {e}\n")
+
+def send_pdf_to_all(session_data):
+    with open(os.path.join(UPLOAD_FOLDER, session_data['pdf']), 'rb') as f:
+        file_data = f.read()
+    for f in session_data['fields']:
+        recipient = f['email']
+        if recipient:
+            msg = EmailMessage()
+            msg['Subject'] = 'Document signé complet'
+            msg['From'] = os.getenv('SMTP_USER')
+            msg['To'] = recipient
+            msg.set_content('Voici le PDF signé.')
+            msg.add_attachment(file_data, maintype='application', subtype='pdf', filename=session_data['pdf'])
+            try:
+                with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
+                    server.starttls()
+                    server.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASS'))
+                    server.send_message(msg)
+            except Exception as e:
+                with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
+                    log.write(f"[ERROR] Envoi final PDF vers {recipient} echoue: {e}\n")
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
