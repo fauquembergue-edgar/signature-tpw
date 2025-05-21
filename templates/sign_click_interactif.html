@@ -31,17 +31,20 @@
   <h2>Signature du document</h2>
   <div class="legend">
     <strong>Vos zones à remplir sont en :</strong>
-    <span class="legend-box" style="background-color: #FF5733;"></span> Orange
+    <span class="legend-box" id="legend-color"></span> <span id="legend-text"></span>
   </div>
 
   <div class="pdf-wrapper">
     <embed id="pdfViewer" src="/uploads/{{ pdf }}" type="application/pdf">
+    {% set sign_colors = ['#FF5733', '#337DFF', '#33C964', '#D633FF', '#FFC300', '#33D6FF'] %}
     {% for f in fields_json %}
+      {% set color = sign_colors[loop.index0 % sign_colors|length] %}
       <div class="zone"
-           style="left:{{ f.x }}px; top:{{ f.y }}px; border-color: {{ '#FF5733' if f.email == email else '#ccc' }};"
+           style="left:{{ f.x }}px; top:{{ f.y }}px; border-color: {{ color if f.email == email else '#ccc' }};"
            data-type="{{ f.type }}"
            data-index="{{ loop.index0 }}"
            data-email="{{ f.email }}"
+           data-color="{{ color }}"
            {% if f.email != email %} style="pointer-events: none; opacity: 0.5;" {% endif %}>
         {{ 'Signature' if f.type == 'signature' else 'Texte' }}
       </div>
@@ -60,11 +63,19 @@ const inputArea = document.getElementById('input-area');
 const submitBtn = document.getElementById('submit-btn');
 const fields = {{ fields_all | tojson }};
 let completed = fields.map(f => f.signed);
+let myColor = "";
 
 zones.forEach(zone => {
   const type = zone.dataset.type;
   const index = parseInt(zone.dataset.index);
   const email = zone.dataset.email;
+  const color = zone.dataset.color;
+
+  if (email === signEmail && myColor === "") {
+    myColor = color;
+    document.getElementById("legend-color").style.backgroundColor = color;
+    document.getElementById("legend-text").innerText = color;
+  }
 
   if (email !== signEmail) return;
 
@@ -175,9 +186,10 @@ function updateZone(index) {
 }
 
 function checkCompletion() {
-  if (completed.every(f => f)) {
-    submitBtn.style.display = 'inline-block';
-  }
+  const myFields = fields.filter(f => f.email === signEmail);
+  const myIndices = myFields.map(f => fields.indexOf(f));
+  const allDone = myIndices.every(i => completed[i]);
+  if (allDone) submitBtn.style.display = 'inline-block';
 }
 
 submitBtn.onclick = () => {
