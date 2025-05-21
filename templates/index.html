@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -255,6 +254,27 @@ function loadTemplate() {
     });
 }
 </script>
+
+
+<div style="position: fixed; top: 20px; right: 20px; width: 400px; background: white; border: 1px solid #ccc; padding: 15px; max-height: 90vh; overflow-y: auto;">
+  <h3>🧾 Suivi des signatures</h3>
+  <table style="width:100%; font-size: 13px; border-collapse: collapse;">
+    <tr style="background-color:#007BFF; color:white;">
+      <th>Demande</th>
+      <th>Statut</th>
+    </tr>
+    {% for sid, s in sessions.items() %}
+    <tr>
+      <td>{{ s.name or 'Sans nom' }}</td>
+      <td>
+        {% for f in s.fields %}
+          {{ f.email }} : {% if f.signed %}✅{% else %}❌{% endif %}<br>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
 
 </body>
 </html>
