@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -6,13 +5,12 @@
   <title>Création de formulaire - PDF Signature</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; display: flex; }
     canvas { border: 1px solid #aaa; display: block; margin-top: 20px; }
     .btn { padding: 8px 15px; background: #007BFF; color: white; border: none; margin: 5px; cursor: pointer; }
     .btn:hover { background: #0056b3; }
     .field-box {
       position: absolute;
-      border: 2px dashed red;
       background: white;
       padding: 4px;
       font-size: 12px;
@@ -32,70 +30,96 @@
       height: 20px;
       font-size: 12px;
     }
+    #left { flex: 3; margin-right: 20px; position: relative; }
+    #right {
+      flex: 1;
+      background: white;
+      border: 1px solid #ccc;
+      padding: 15px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .legend-box {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 5px;
+    }
   </style>
 </head>
 <body>
 
-<h1>📄 Création d’un formulaire à signer</h1>
+<div id="left">
+  <h1>📄 Création d’un formulaire à signer</h1>
 
-<form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
-  <input type="file" name="pdf" accept=".pdf" required>
-  <input type="submit" value="Charger le PDF" class="btn">
-</form>
+  <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="pdf" accept=".pdf" required>
+    <input type="submit" value="Charger le PDF" class="btn">
+  </form>
 
-<!-- Champ nom_demande -->
-<div style="margin-top: 15px;">
-  <strong>Nom de la demande :</strong><br>
-  <input type="text" id="nom-demande" placeholder="Ex : Contrat client X">
+  <div style="margin-top: 15px;">
+    <strong>Type de champ :</strong><br>
+    <button class="btn" onclick="selectType('text')">Zone de texte</button>
+    <button class="btn" onclick="selectType('signature')">Zone de signature</button>
+  </div>
+
+  <div style="margin-top: 15px;">
+    <strong>Ajouter des signataires :</strong>
+    <div id="signataires-list"></div>
+    <input type="email" id="new-email" placeholder="Email du signataire">
+    <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
+  </div>
+
+  <div style="margin-top: 15px;">
+    <strong>Nom de la demande :</strong><br>
+    <input type="text" id="nom-demande" placeholder="Nom du processus (ex : Contrat 2024)">
+  </div>
+
+  <div style="margin-top: 15px;">
+    <strong>Message email :</strong><br>
+    <textarea id="email-message" placeholder="Entrez ici le message qui accompagnera l’email..." rows="3" cols="60"></textarea>
+  </div>
+
+  <div style="margin-top: 15px;">
+    <strong>Templates :</strong><br>
+    <input type="text" id="template-name" placeholder="Nom du template">
+    <button class="btn" onclick="saveTemplate()">💾 Sauvegarder comme template</button>
+    <select id="template-select">
+      <option disabled selected>-- Charger un template --</option>
+      {% for t in templates %}
+        <option value="{{ t }}">{{ t }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn" onclick="loadTemplate()">📂 Charger</button>
+  </div>
+
+  <div id="pdf-container" style="position: relative; display: none;">
+    <canvas id="pdf-canvas"></canvas>
+  </div>
+
+  <form id="assign-fields-form" action="/define-fields" method="post">
+    <input type="hidden" name="fields_json" id="fields-json">
+    <input type="hidden" name="email_message" id="email-message-hidden">
+    <input type="hidden" name="nom_demande" id="nom-demande-hidden">
+    <input type="submit" value="📤 Lancer le processus de signature" class="btn">
+  </form>
 </div>
 
-<!-- Type de champ -->
-<div style="margin-top: 15px;">
-  <strong>Type de champ :</strong><br>
-  <button class="btn" onclick="selectType('text')">Zone de texte</button>
-  <button class="btn" onclick="selectType('signature')">Zone de signature</button>
-</div>
-
-<!-- Signataires -->
-<div style="margin-top: 15px;">
-  <strong>Ajouter des signataires :</strong>
-  <div id="signataires-list"></div>
-  <input type="email" id="new-email" placeholder="Email du signataire">
-  <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
-</div>
-
-<!-- Message personnalisé -->
-<div style="margin-top: 15px;">
-  <strong>Message email :</strong><br>
-  <textarea id="email-message" placeholder="Entrez ici le message qui accompagnera l’email..." rows="3" cols="60"></textarea>
-</div>
-
-<!-- Templates -->
-<div style="margin-top: 15px;">
-  <strong>Templates :</strong><br>
-  <input type="text" id="template-name" placeholder="Nom du template">
-  <button class="btn" onclick="saveTemplate()">💾 Sauvegarder comme template</button>
-  <select id="template-select">
-    <option disabled selected>-- Charger un template --</option>
-    {% for t in templates %}
-      <option value="{{ t }}">{{ t }}</option>
+<div id="right">
+  <h3>🧾 Suivi des signatures</h3>
+  <table style="width:100%; font-size: 13px; border-collapse: collapse;">
+    <tr style="background-color:#007BFF; color:white;">
+      <th>Demande</th>
+      <th>Statut</th>
+    </tr>
+    {% for sid, s in sessions.items() %}
+    <tr>
+      <td>{{ s.name or 'Sans nom' }}</td>
+      <td>{% if s.done %}✅ Terminé{% else %}⏳ En attente{% endif %}</td>
+    </tr>
     {% endfor %}
-  </select>
-  <button class="btn" onclick="loadTemplate()">📂 Charger</button>
+  </table>
 </div>
-
-<!-- Canvas PDF -->
-<div id="pdf-container" style="position: relative; display: none;">
-  <canvas id="pdf-canvas"></canvas>
-</div>
-
-<!-- Formulaire final -->
-<form id="assign-fields-form" action="/define-fields" method="post">
-  <input type="hidden" name="fields_json" id="fields-json">
-  <input type="hidden" name="email_message" id="email-message-hidden">
-  <input type="hidden" name="nom_demande" id="nom-demande-hidden">
-  <input type="submit" value="📤 Lancer le processus de signature" class="btn">
-</form>
 
 <script>
 let fields = [];
@@ -106,6 +130,7 @@ let currentType = null;
 let signataires = [];
 let canvas = document.getElementById('pdf-canvas');
 let container = document.getElementById('pdf-container');
+const COLORS = ["#FF5733", "#337DFF", "#33C964", "#D633FF", "#FFC300", "#33D6FF"];
 
 document.getElementById('upload-form').onsubmit = function(e) {
   e.preventDefault();
@@ -146,9 +171,9 @@ function addSignataire() {
 function updateSignatairesList() {
   const container = document.getElementById('signataires-list');
   container.innerHTML = "";
-  signataires.forEach(s => {
+  signataires.forEach((s, i) => {
     const label = document.createElement('label');
-    label.innerHTML = `<input type="radio" name="signataire" value="${s.email}"> Signataire ${s.id + 1} (${s.email})`;
+    label.innerHTML = `<input type="radio" name="signataire" value="${s.email}"> Signataire ${s.id + 1} (${s.email}) <span style="display:inline-block; width:10px; height:10px; background:${COLORS[i % COLORS.length]}; margin-left:5px;"></span>`;
     container.appendChild(label);
     container.appendChild(document.createElement('br'));
   });
@@ -163,12 +188,14 @@ canvas.addEventListener('click', function(event) {
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
   const id = fieldId++;
+  const color = COLORS[signataires.findIndex(s => s.email === email) % COLORS.length];
   const field = { id, type: currentType, email, x, y, signed: false };
   fields.push(field);
   const div = document.createElement('div');
   div.className = 'field-box';
   div.style.left = x + 'px';
   div.style.top = y + 'px';
+  div.style.border = `2px dashed ${color}`;
   div.innerText = currentType.toUpperCase();
   const removeBtn = document.createElement('button');
   removeBtn.innerText = '×';
@@ -215,7 +242,6 @@ document.getElementById('assign-fields-form').onsubmit = function () {
   document.getElementById('nom-demande-hidden').value = document.getElementById('nom-demande').value;
 };
 
-// Sauvegarder un template
 function saveTemplate() {
   const name = document.getElementById('template-name').value.trim();
   if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
@@ -226,7 +252,6 @@ function saveTemplate() {
   }).then(res => res.json()).then(r => alert("Template enregistré."));
 }
 
-// Charger un template
 function loadTemplate() {
   const name = document.getElementById('template-select').value;
   fetch('/load-template/' + name)
@@ -246,6 +271,8 @@ function loadTemplate() {
           div.style.left = field.x + 'px';
           div.style.top = field.y + 'px';
           div.innerText = field.type.toUpperCase();
+          const color = COLORS[signataires.findIndex(s => s.email === field.email) % COLORS.length];
+          div.style.border = `2px dashed ${color}`;
           const removeBtn = document.createElement('button');
           removeBtn.innerText = '×';
           removeBtn.className = 'remove-btn';
@@ -262,23 +289,6 @@ function loadTemplate() {
     });
 }
 </script>
-
-<!-- Tableau de suivi -->
-<div style="position: fixed; top: 20px; right: 20px; width: 400px; background: white; border: 1px solid #ccc; padding: 15px; max-height: 90vh; overflow-y: auto;">
-  <h3>🧾 Suivi des signatures</h3>
-  <table style="width:100%; font-size: 13px; border-collapse: collapse;">
-    <tr style="background-color:#007BFF; color:white;">
-      <th>Demande</th>
-      <th>Statut</th>
-    </tr>
-    {% for sid, s in sessions.items() %}
-    <tr>
-      <td>{{ s.name or 'Sans nom' }}</td>
-      <td>{% if s.done %}✅ Terminé{% else %}❌ En attente{% endif %}</td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
 
 </body>
 </html>
