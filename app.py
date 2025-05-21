@@ -186,7 +186,7 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"{message}
+    msg.set_content(f"{message}\n\nCliquez ici : {app_url}/sign/{session_id}/{step}")
 
 Cliquez ici : {app_url}/sign/{session_id}/{step}")
     try:
