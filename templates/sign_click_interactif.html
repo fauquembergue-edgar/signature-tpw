@@ -4,54 +4,83 @@
   <meta charset="UTF-8">
   <title>Signer le document</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f2f2f2; padding: 20px; }
-    .pdf-container { position: relative; display: inline-block; }
-    .zone { position: absolute; border: 2px dashed #007BFF; padding: 5px; background: rgba(255,255,255,0.8); cursor: pointer; }
-    #signature-pad { display: none; margin-top: 10px; }
-    canvas { border: 1px solid #ccc; background: #fff; }
-    #submit-btn { margin-top: 20px; display: none; padding: 10px 20px; font-size: 16px; }
+    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+    .legend { margin-bottom: 15px; }
+    .pdf-wrapper { position: relative; display: inline-block; }
+    .zone {
+      position: absolute;
+      border: 2px dashed;
+      background: rgba(255,255,255,0.8);
+      padding: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      z-index: 10;
+    }
+    #pdfViewer {
+      width: 800px;
+      height: 1000px;
+      border: none;
+    }
+    .legend-box { display: inline-block; width: 12px; height: 12px; margin-right: 5px; }
+    #input-area { margin-top: 20px; }
+    canvas { border: 1px solid #ccc; background: #fff; margin-top: 10px; }
+    #submit-btn { display: none; margin-top: 20px; padding: 10px 20px; }
   </style>
 </head>
 <body>
-<h1>Remplir les champs du document</h1>
-<div class="pdf-container" id="pdfContainer">
-  <embed src="/uploads/{{ pdf }}" type="application/pdf" width="800px" height="1000px"/>
-  {% for f in fields_json %}
-    <div class="zone" style="left: {{ f.x }}px; top: {{ f.y }}px;" data-type="{{ f.type }}" data-index="{{ loop.index0 }}" data-email="{{ f.email }}">
-      {{ 'Signature' if f.type == 'signature' else 'Texte' }}
-    </div>
-  {% endfor %}
-</div>
+  <h2>Signature du document</h2>
+  <div class="legend">
+    <strong>Vos zones à remplir sont en :</strong>
+    <span class="legend-box" style="background-color: #FF5733;"></span> Orange
+  </div>
 
-<div id="input-area"></div>
+  <div class="pdf-wrapper">
+    <embed id="pdfViewer" src="/uploads/{{ pdf }}" type="application/pdf">
+    {% for f in fields_json %}
+      <div class="zone"
+           style="left:{{ f.x }}px; top:{{ f.y }}px; border-color: {{ '#FF5733' if f.email == email else '#ccc' }};"
+           data-type="{{ f.type }}"
+           data-index="{{ loop.index0 }}"
+           data-email="{{ f.email }}"
+           {% if f.email != email %} style="pointer-events: none; opacity: 0.5;" {% endif %}>
+        {{ 'Signature' if f.type == 'signature' else 'Texte' }}
+      </div>
+    {% endfor %}
+  </div>
 
-<button id="submit-btn">Valider et envoyer</button>
+  <div id="input-area"></div>
+  <button id="submit-btn">Valider et envoyer</button>
 
 <script>
-const zones = document.querySelectorAll('.zone');
-const inputArea = document.getElementById('input-area');
 const sessionId = "{{ session_id }}";
 const step = {{ step }};
-const fields = {{ fields_json | tojson }};
-let completed = new Array(fields.length).fill(false);
+const signEmail = "{{ email }}";
+const zones = document.querySelectorAll('.zone');
+const inputArea = document.getElementById('input-area');
+const submitBtn = document.getElementById('submit-btn');
+const fields = {{ fields_all | tojson }};
+let completed = fields.map(f => f.signed);
 
 zones.forEach(zone => {
-  zone.addEventListener('click', () => {
-    const type = zone.dataset.type;
-    const index = parseInt(zone.dataset.index);
+  const type = zone.dataset.type;
+  const index = parseInt(zone.dataset.index);
+  const email = zone.dataset.email;
 
+  if (email !== signEmail) return;
+
+  zone.addEventListener('click', () => {
     inputArea.innerHTML = '';
 
     if (type === 'text') {
       const input = document.createElement('input');
       input.type = 'text';
-      input.placeholder = 'Entrer un texte';
+      input.placeholder = 'Votre réponse';
       const submit = document.createElement('button');
       submit.textContent = 'Valider';
       submit.onclick = () => {
         fetch('/fill-field', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             session_id: sessionId,
             step: step,
@@ -63,8 +92,8 @@ zones.forEach(zone => {
           zone.style.border = '2px solid green';
           zone.style.pointerEvents = 'none';
           completed[index] = true;
-          checkAll();
           inputArea.innerHTML = '';
+          checkCompletion();
         });
       };
       inputArea.appendChild(input);
@@ -73,13 +102,13 @@ zones.forEach(zone => {
 
     if (type === 'signature') {
       inputArea.innerHTML = `
-        <p>Choisissez une méthode de signature :</p>
-        <input type="text" id="sigText" placeholder="Signer en texte"><br>
-        <button onclick="sendSignatureText(${index})">Valider texte</button><br><br>
+        <p>Signature :</p>
+        <input type="text" id="sigText" placeholder="Nom complet">
+        <button onclick="sendSigText(${index})">Valider texte</button><br><br>
         <input type="file" id="sigFile" accept="image/png">
-        <button onclick="sendSignatureFile(${index})">Valider PNG</button><br><br>
+        <button onclick="sendSigFile(${index})">Valider image</button><br><br>
         <canvas id="sigCanvas" width="300" height="100"></canvas><br>
-        <button onclick="sendSignatureCanvas(${index})">Valider dessin</button>
+        <button onclick="sendSigDraw(${index})">Valider dessin</button>
       `;
       const canvas = document.getElementById('sigCanvas');
       const ctx = canvas.getContext('2d');
@@ -97,93 +126,70 @@ zones.forEach(zone => {
   });
 });
 
-function sendSignatureText(index) {
-  const value = document.getElementById('sigText').value;
+function sendSigText(index) {
+  const val = document.getElementById('sigText').value;
   fetch('/fill-field', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      session_id: sessionId,
-      step: step,
-      field_index: index,
-      value: value
-    })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, step: step, field_index: index, value: val })
   }).then(() => {
-    zones[index].textContent = 'Signé';
-    zones[index].style.border = '2px solid green';
-    zones[index].style.pointerEvents = 'none';
-    completed[index] = true;
-    inputArea.innerHTML = '';
-    checkAll();
+    updateZone(index);
   });
 }
 
-function sendSignatureCanvas(index) {
-  const canvas = document.getElementById('sigCanvas');
-  const dataURL = canvas.toDataURL('image/png');
-  fetch('/fill-field', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      session_id: sessionId,
-      step: step,
-      field_index: index,
-      value: dataURL
-    })
-  }).then(() => {
-    zones[index].textContent = 'Signé';
-    zones[index].style.border = '2px solid green';
-    zones[index].style.pointerEvents = 'none';
-    completed[index] = true;
-    inputArea.innerHTML = '';
-    checkAll();
-  });
-}
-
-function sendSignatureFile(index) {
+function sendSigFile(index) {
   const file = document.getElementById('sigFile').files[0];
   const reader = new FileReader();
-  reader.onload = function() {
+  reader.onload = () => {
     fetch('/fill-field', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        session_id: sessionId,
-        step: step,
-        field_index: index,
-        value: reader.result
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, step: step, field_index: index, value: reader.result })
     }).then(() => {
-      zones[index].textContent = 'Signé';
-      zones[index].style.border = '2px solid green';
-      zones[index].style.pointerEvents = 'none';
-      completed[index] = true;
-      inputArea.innerHTML = '';
-      checkAll();
+      updateZone(index);
     });
   };
   if (file) reader.readAsDataURL(file);
 }
 
-function checkAll() {
-  if (completed.every(Boolean)) {
-    document.getElementById('submit-btn').style.display = 'block';
+function sendSigDraw(index) {
+  const canvas = document.getElementById('sigCanvas');
+  const dataURL = canvas.toDataURL('image/png');
+  fetch('/fill-field', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, step: step, field_index: index, value: dataURL })
+  }).then(() => {
+    updateZone(index);
+  });
+}
+
+function updateZone(index) {
+  const zone = document.querySelector(`.zone[data-index='${index}']`);
+  zone.textContent = '✅';
+  zone.style.border = '2px solid green';
+  zone.style.pointerEvents = 'none';
+  completed[index] = true;
+  inputArea.innerHTML = '';
+  checkCompletion();
+}
+
+function checkCompletion() {
+  if (completed.every(f => f)) {
+    submitBtn.style.display = 'inline-block';
   }
 }
 
-document.getElementById('submit-btn').onclick = () => {
+submitBtn.onclick = () => {
   fetch('/finalise-signature', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId })
   }).then(() => {
-    alert("Document envoyé au prochain signataire ou finalisé.");
-    window.location.href = "/";
+    alert("Signature finalisée. Le document est transmis.");
+    location.href = "/";
   });
 };
 </script>
-</body>
-</html>
-
 </body>
 </html>
