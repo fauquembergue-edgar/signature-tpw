@@ -1,4 +1,3 @@
-
 from flask import Flask, request, render_template, send_from_directory, jsonify
 import os
 import uuid
@@ -27,8 +26,20 @@ os.makedirs(LOG_FOLDER, exist_ok=True)
 
 @app.route('/')
 def index():
+    sessions = {}
+    for filename in os.listdir(SESSION_FOLDER):
+        if filename.endswith(".json"):
+            sid = filename.replace(".json", "")
+            with open(os.path.join(SESSION_FOLDER, filename)) as f:
+                data = json.load(f)
+                sessions[sid] = {
+                    "pdf": data["pdf"],
+                    "name": data.get("nom_demande", ""),
+                    "fields": data["fields"],
+                    "done": all(f.get("signed") for f in data["fields"])
+                }
     templates = [f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')]
-    return render_template('index.html', templates=templates)
+    return render_template("index.html", templates=templates, sessions=sessions)
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -64,6 +75,7 @@ def load_template(name):
 def define_fields():
     data = json.loads(request.form['fields_json'])
     message = request.form.get('email_message', '')
+    nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
     pdf_file = data['pdf']
     fields = data['fields']
@@ -73,12 +85,13 @@ def define_fields():
     session_data = {
         'pdf': pdf_file,
         'fields': fields,
-        'email_message': message
+        'email_message': message,
+        'nom_demande': nom_demande
     }
     with open(os.path.join(SESSION_FOLDER, f'{session_id}.json'), 'w') as f:
         json.dump(session_data, f)
     send_email(session_id, step=0)
-    return f"Processus lancé. Le premier signataire a été notifié."
+    return render_template("notified.html", session_id=session_id)
 
 @app.route('/sign/<session_id>/<int:step>')
 def sign(session_id, step):
@@ -173,7 +186,7 @@ def send_email(session_id, step):
             server.send_message(msg)
     except Exception as e:
         with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] email vers {recipient} : {e}\n")
+            log.write(f"[ERROR] email vers {recipient} : {e}\\n")
 
 def send_pdf_to_all(session_data):
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
@@ -195,8 +208,9 @@ def send_pdf_to_all(session_data):
                     server.send_message(msg)
             except Exception as e:
                 with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                    log.write(f"[ERROR] PDF à {recipient} : {e}\n")
+                    log.write(f"[ERROR] PDF à {recipient} : {e}\\n")
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+    
