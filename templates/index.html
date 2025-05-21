@@ -6,7 +6,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; display: flex; }
-    canvas { border: 1px solid #aaa; display: block; margin-top: 20px; }
     .btn { padding: 8px 15px; background: #007BFF; color: white; border: none; margin: 5px; cursor: pointer; }
     .btn:hover { background: #0056b3; }
     .field-box {
@@ -30,7 +29,7 @@
       height: 20px;
       font-size: 12px;
     }
-    #left { flex: 3; margin-right: 20px; position: relative; }
+    #left { flex: 3; margin-right: 20px; }
     #right {
       flex: 1;
       background: white;
@@ -44,6 +43,14 @@
       width: 12px;
       height: 12px;
       margin-right: 5px;
+    }
+    #pdf-container {
+      position: relative;
+      margin-top: 20px;
+    }
+    canvas {
+      display: block;
+      border: 1px solid #aaa;
     }
   </style>
 </head>
@@ -124,7 +131,6 @@
 <script>
 let fields = [];
 let fieldId = 0;
-let scale = 1;
 let currentPdf = null;
 let currentType = null;
 let signataires = [];
@@ -148,7 +154,7 @@ function loadPDF(url) {
   const loadingTask = pdfjsLib.getDocument(url);
   loadingTask.promise.then(pdf => {
     pdf.getPage(1).then(page => {
-      const viewport = page.getViewport({ scale: scale });
+      const viewport = page.getViewport({ scale: 1.5 });
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       const context = canvas.getContext('2d');
