@@ -1,112 +1,146 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Signature requise</title>
+  <title>Signature interactive</title>
   <style>
-    body { font-family: Arial, sans-serif; background-color: #f2f2f2; padding: 40px; }
-    table { border-collapse: collapse; width: 100%; background-color: white; margin-bottom: 20px; }
-    th, td { padding: 10px; border: 1px solid #ccc; text-align: left; }
-    th { background-color: #007BFF; color: white; }
-    form {
-      background: white; padding: 20px; border-radius: 8px;
-      box-shadow: 0px 2px 6px rgba(0,0,0,0.1); max-width: 500px;
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f2f2f2; }
+    #pdf-container { position: relative; display: inline-block; }
+    canvas { border: 1px solid #ccc; }
+    .zone {
+      position: absolute;
+      border: 2px dashed #007BFF;
+      padding: 4px;
+      background-color: rgba(255, 255, 255, 0.8);
+      cursor: pointer;
     }
-    input[type="text"], input[type="file"] {
-      width: 100%; margin-bottom: 15px; padding: 8px;
-      border: 1px solid #ccc; border-radius: 4px;
+    .zone.filled {
+      background-color: rgba(100, 255, 100, 0.6);
+      border-color: green;
+      pointer-events: none;
     }
-    input[type="submit"] {
-      background-color: #28a745; color: white;
-      padding: 10px 15px; border: none;
-      border-radius: 4px; cursor: pointer;
-      margin-top: 10px;
+    .btn {
+      padding: 10px 15px;
+      margin-top: 20px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      display: none;
     }
-    canvas { border: 1px solid #ccc; margin-top: 10px; }
   </style>
 </head>
 <body>
 
-<h1>Signature pour : {{ email }}</h1>
+<h2>Remplissez les champs attribués</h2>
 
-<h3>Statut des signatures :</h3>
-<table>
-  <tr><th>Email</th><th>Type</th><th>Statut</th></tr>
-  {% for f in fields_all %}
-    <tr>
-      <td>{{ f.email }}</td>
-      <td>{{ f.type }}</td>
-      <td>{% if f.signed %}✅ Signé{% else %}⏳ En attente{% endif %}</td>
-    </tr>
-  {% endfor %}
-</table>
+<div id="pdf-container">
+  <canvas id="pdf-canvas"></canvas>
+</div>
 
-<form method="post" enctype="multipart/form-data">
-  {% for field in fields %}
-    {% if field.type == 'text' %}
-      <p>Zone texte :</p>
-      <input type="text" name="text_{{ loop.index0 }}" required>
-    {% elif field.type == 'signature' %}
-      <p>Choisissez le mode de signature :</p>
-      <label><input type="radio" name="sig_mode" value="draw" checked> Dessiner</label>
-      <label><input type="radio" name="sig_mode" value="text"> Taper votre nom</label>
+<div id="input-box" style="display:none; margin-top:20px;">
+  <label id="input-label"></label><br>
+  <input type="text" id="text-input" placeholder="Entrez du texte ici">
+  <button class="btn" onclick="submitField()">Valider ce champ</button>
+</div>
 
-      <div id="draw-container">
-        <canvas id="sig-canvas" width="400" height="150"></canvas>
-        <input type="hidden" name="signature_drawn" id="signature_drawn">
-      </div>
+<button id="final-btn" class="btn" onclick="finaliser()">Valider et envoyer</button>
 
-      <div id="text-container" style="display:none;">
-        <input type="text" name="signature_text" placeholder="Nom et prénom">
-      </div>
-    {% endif %}
-  {% endfor %}
-  <input type="submit" value="Valider et envoyer">
-</form>
-
-<hr>
-<embed src="/uploads/{{ pdf }}" width="100%" height="600px" type="application/pdf">
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
 <script>
-const drawContainer = document.getElementById('draw-container');
-const textContainer = document.getElementById('text-container');
-document.querySelectorAll('input[name="sig_mode"]').forEach(r => {
-  r.onclick = () => {
-    if (r.value === 'draw') {
-      drawContainer.style.display = 'block';
-      textContainer.style.display = 'none';
-    } else {
-      drawContainer.style.display = 'none';
-      textContainer.style.display = 'block';
-    }
-  };
-});
+const canvas = document.getElementById('pdf-canvas');
+const ctx = canvas.getContext('2d');
+const pdfContainer = document.getElementById('pdf-container');
+const inputBox = document.getElementById('input-box');
+const textInput = document.getElementById('text-input');
+const inputLabel = document.getElementById('input-label');
+const finalBtn = document.getElementById('final-btn');
 
-const canvas = document.getElementById('sig-canvas');
-if (canvas) {
-  const ctx = canvas.getContext('2d');
-  let drawing = false;
-  canvas.onmousedown = () => { drawing = true; ctx.beginPath(); };
-  canvas.onmouseup = () => { drawing = false; };
-  canvas.onmousemove = e => {
-    if (!drawing) return;
-    const rect = canvas.getBoundingClientRect();
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "black";
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-  };
+let fields = {{ fields_json | safe }};
+let pdfUrl = "/uploads/{{ pdf }}";
+let selectedField = null;
 
-  document.querySelector('form').onsubmit = function () {
-    if (document.querySelector('input[name="sig_mode"]:checked').value === 'draw') {
-      document.getElementById('signature_drawn').value = canvas.toDataURL("image/png");
-    }
-  };
+function loadPDF(url) {
+  pdfjsLib.getDocument(url).promise.then(pdf => {
+    pdf.getPage(1).then(page => {
+      const viewport = page.getViewport({ scale: 1.5 });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const renderContext = {
+        canvasContext: ctx,
+        viewport: viewport
+      };
+      page.render(renderContext).promise.then(() => {
+        fields.forEach((f, idx) => {
+          const zone = document.createElement("div");
+          zone.className = "zone" + (f.signed ? " filled" : "");
+          zone.style.left = f.x + "px";
+          zone.style.top = f.y + "px";
+          zone.innerText = f.type.toUpperCase();
+          zone.dataset.index = idx;
+          if (!f.signed) {
+            zone.onclick = () => openInputField(idx);
+          }
+          pdfContainer.appendChild(zone);
+        });
+        checkCompletion();
+      });
+    });
+  });
 }
+
+function openInputField(index) {
+  selectedField = index;
+  const f = fields[index];
+  inputLabel.innerText = `Champ (${f.type}) pour ${f.email}`;
+  textInput.value = "";
+  inputBox.style.display = "block";
+}
+
+function submitField() {
+  const val = textInput.value;
+  if (!val || selectedField === null) return;
+  const f = fields[selectedField];
+  fetch("/fill-field", {
+    method: "POST",
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: "{{ session_id }}",
+      step: {{ step }},
+      field_index: selectedField,
+      value: val
+    })
+  }).then(res => res.json()).then(data => {
+    if (data.status === "ok") {
+      document.querySelectorAll('.zone')[selectedField].classList.add("filled");
+      document.querySelectorAll('.zone')[selectedField].onclick = null;
+      fields[selectedField].signed = true;
+      inputBox.style.display = "none";
+      checkCompletion();
+    }
+  });
+}
+
+function checkCompletion() {
+  const allFilled = fields.every(f => f.signed);
+  if (allFilled) {
+    finalBtn.style.display = "inline-block";
+  }
+}
+
+function finaliser() {
+  fetch("/finalise-signature", {
+    method: "POST",
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: "{{ session_id }}" })
+  }).then(() => {
+    window.location.href = "/session/{{ session_id }}/status";
+  });
+}
+
+loadPDF(pdfUrl);
 </script>
+
 </body>
 </html>
