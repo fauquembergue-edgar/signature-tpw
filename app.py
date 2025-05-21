@@ -34,7 +34,7 @@ def index():
                 data = json.load(f)
                 sessions[sid] = {
                     "pdf": data["pdf"],
-                    "name": data.get("nom_demande", ""),
+                    "name": data.get("nom_demande", "Sans nom"),
                     "fields": data["fields"],
                     "done": all(f.get("signed") for f in data["fields"])
                 }
@@ -79,17 +79,21 @@ def define_fields():
     session_id = str(uuid.uuid4())
     pdf_file = data['pdf']
     fields = data['fields']
-    for field in fields:
+    for i, field in enumerate(fields):
         field['signed'] = False
         field['value'] = ''
+        field['step'] = i  # chaque champ aura un step unique
+
     session_data = {
         'pdf': pdf_file,
         'fields': fields,
         'email_message': message,
         'nom_demande': nom_demande
     }
+
     with open(os.path.join(SESSION_FOLDER, f'{session_id}.json'), 'w') as f:
         json.dump(session_data, f)
+
     send_email(session_id, step=0)
     return render_template("notified.html", session_id=session_id)
 
@@ -98,12 +102,15 @@ def sign(session_id, step):
     path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(path) as f:
         session_data = json.load(f)
-    fields = [f for f in session_data['fields'] if f.get('step', 0) == step]
+    fields = [f for f in session_data['fields'] if f.get('step') == step]
+    email = fields[0]['email'] if fields else ''
     return render_template('sign_click_interactif.html',
                            fields_json=fields,
                            pdf=session_data['pdf'],
                            session_id=session_id,
-                           step=step)
+                           step=step,
+                           email=email,
+                           fields_all=session_data['fields'])
 
 @app.route('/fill-field', methods=['POST'])
 def fill_field():
@@ -173,12 +180,15 @@ def send_email(session_id, step):
     recipient = next((f['email'] for f in data['fields'] if f.get('step', 0) == step), None)
     if not recipient:
         return
+    message = data.get('email_message', '')
     app_url = os.getenv('APP_URL', 'http://localhost:5000')
     msg = EmailMessage()
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"Bonjour, veuillez signer ici : {app_url}/sign/{session_id}/{step}")
+    msg.set_content(f"{message}
+
+Cliquez ici : {app_url}/sign/{session_id}/{step}")
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
@@ -186,7 +196,7 @@ def send_email(session_id, step):
             server.send_message(msg)
     except Exception as e:
         with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] email vers {recipient} : {e}\\n")
+            log.write(f"[ERROR] email vers {recipient} : {e}\n")
 
 def send_pdf_to_all(session_data):
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
@@ -208,9 +218,8 @@ def send_pdf_to_all(session_data):
                     server.send_message(msg)
             except Exception as e:
                 with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                    log.write(f"[ERROR] PDF à {recipient} : {e}\\n")
+                    log.write(f"[ERROR] PDF à {recipient} : {e}\n")
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-    
