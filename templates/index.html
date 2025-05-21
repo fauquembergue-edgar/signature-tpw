@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -41,6 +42,12 @@
   <input type="file" name="pdf" accept=".pdf" required>
   <input type="submit" value="Charger le PDF" class="btn">
 </form>
+
+<!-- Champ nom_demande -->
+<div style="margin-top: 15px;">
+  <strong>Nom de la demande :</strong><br>
+  <input type="text" id="nom-demande" placeholder="Ex : Contrat client X">
+</div>
 
 <!-- Type de champ -->
 <div style="margin-top: 15px;">
@@ -86,6 +93,7 @@
 <form id="assign-fields-form" action="/define-fields" method="post">
   <input type="hidden" name="fields_json" id="fields-json">
   <input type="hidden" name="email_message" id="email-message-hidden">
+  <input type="hidden" name="nom_demande" id="nom-demande-hidden">
   <input type="submit" value="📤 Lancer le processus de signature" class="btn">
 </form>
 
@@ -99,7 +107,6 @@ let signataires = [];
 let canvas = document.getElementById('pdf-canvas');
 let container = document.getElementById('pdf-container');
 
-// Upload PDF
 document.getElementById('upload-form').onsubmit = function(e) {
   e.preventDefault();
   const formData = new FormData(this);
@@ -205,6 +212,7 @@ document.getElementById('assign-fields-form').onsubmit = function () {
     fields: fields
   });
   document.getElementById('email-message-hidden').value = document.getElementById('email-message').value;
+  document.getElementById('nom-demande-hidden').value = document.getElementById('nom-demande').value;
 };
 
 // Sauvegarder un template
@@ -255,7 +263,7 @@ function loadTemplate() {
 }
 </script>
 
-
+<!-- Tableau de suivi -->
 <div style="position: fixed; top: 20px; right: 20px; width: 400px; background: white; border: 1px solid #ccc; padding: 15px; max-height: 90vh; overflow-y: auto;">
   <h3>🧾 Suivi des signatures</h3>
   <table style="width:100%; font-size: 13px; border-collapse: collapse;">
@@ -266,11 +274,7 @@ function loadTemplate() {
     {% for sid, s in sessions.items() %}
     <tr>
       <td>{{ s.name or 'Sans nom' }}</td>
-      <td>
-        {% for f in s.fields %}
-          {{ f.email }} : {% if f.signed %}✅{% else %}❌{% endif %}<br>
-        {% endfor %}
-      </td>
+      <td>{% if s.done %}✅ Terminé{% else %}❌ En attente{% endif %}</td>
     </tr>
     {% endfor %}
   </table>
