@@ -186,36 +186,38 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
     with open(pdf_path, 'wb') as f:
         writer.write(f)
 
-def apply_signature(pdf_path, sig_path_or_dataurl, output_path, x, y, scale=1.5):
+def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     x /= scale
     y /= scale
-
-    # Charger le PDF existant
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
-
-    # Créer un canvas temporaire
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
 
-    # Si la signature est une DataURL base64 (dessin ou texte)
-    if isinstance(sig_path_or_dataurl, str) and sig_path_or_dataurl.startswith('data:image'):
-        # Convertir en image temporaire
-        header, encoded = sig_path_or_dataurl.split(",", 1)
+    temp_path = None
+
+    if isinstance(sig_data, str) and sig_data.startswith('data:image'):
+        # Cas d'un dessin (base64 PNG)
+        header, encoded = sig_data.split(",", 1)
         image_data = base64.b64decode(encoded)
         image = Image.open(io.BytesIO(image_data)).convert("RGB")
-        temp_path = sig_path = f"/tmp/sig_{uuid.uuid4().hex}.jpg"
+        temp_path = f"/tmp/sig_{uuid.uuid4().hex}.jpg"
         image.save(temp_path, "JPEG")
-    else:
-        # Sinon, on suppose que c'est un fichier PNG existant
-        sig_path = sig_path_or_dataurl
+        can.drawImage(temp_path, x, y, width=100, height=50, mask='auto')
 
-    # Appliquer la signature 20 pixels plus bas pour corriger la hauteur
-    can.drawImage(sig_path, x, y - 20, width=100, height=50, mask='auto')
+    elif isinstance(sig_data, str) and sig_data.strip() != "" and not sig_data.startswith('data:'):
+        # Cas d'une signature texte (ex: "T.D.")
+        can.setFont("Helvetica-Bold", 14)
+        can.drawString(x, y + 15, sig_data)
+
+    elif os.path.exists(sig_data):
+        # Cas d'une signature image PNG locale
+        can.drawImage(sig_data, x, y, width=100, height=50, mask='auto')
+
     can.save()
     packet.seek(0)
-
     overlay = PdfReader(packet)
+
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
@@ -224,9 +226,9 @@ def apply_signature(pdf_path, sig_path_or_dataurl, output_path, x, y, scale=1.5)
     with open(output_path, 'wb') as f:
         writer.write(f)
 
-    # Nettoyage si une image temporaire a été créée
-    if 'temp_path' in locals() and os.path.exists(temp_path):
+    if temp_path and os.path.exists(temp_path):
         os.remove(temp_path)
+
 
 def save_signature_image(data_url, session_id, index):
     if data_url.startswith("data:image/png;base64,"):
