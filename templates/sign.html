@@ -3,30 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <title>Signature du document</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
     .legend { margin-bottom: 15px; }
     .pdf-wrapper { position: relative; display: inline-block; }
+    canvas { border: 1px solid #ccc; background: #fff; }
     .zone {
       position: absolute;
       border: 2px dashed;
-      background: rgba(255,255,255,0.8);
+      background: rgba(255,255,255,0.9);
       padding: 4px;
       font-size: 13px;
       z-index: 10;
+      transform: translate(-50%, -50%);
     }
     .zone.locked {
       pointer-events: none;
       opacity: 0.5;
     }
-    #pdfViewer {
-      width: 800px;
-      height: 1000px;
-      border: none;
-    }
     .legend-box { display: inline-block; width: 12px; height: 12px; margin-right: 5px; }
     #input-area { margin-top: 20px; }
-    canvas { border: 1px solid #ccc; background: #fff; margin-top: 10px; }
     #submit-btn { display: none; margin-top: 20px; padding: 10px 20px; }
   </style>
 </head>
@@ -39,10 +36,10 @@
   </div>
 
   <div class="pdf-wrapper" id="pdf-container">
-    <embed id="pdfViewer" src="/uploads/{{ pdf }}" type="application/pdf">
+    <canvas id="pdf-canvas"></canvas>
     {% for f in fields_json %}
       <div class="zone {% if f.email != email %}locked{% endif %}"
-           style="left:{{ f.x }}px; top:{{ f.y }}px; border-color: {{ '#FF5733' if f.email == email else '#ccc' }};"
+           style="left: {{ f.x }}px; top: {{ f.y }}px; border-color: {{ '#FF5733' if f.email == email else '#ccc' }};"
            data-type="{{ f.type }}"
            data-index="{{ loop.index0 }}"
            data-email="{{ f.email }}">
@@ -63,6 +60,20 @@ const inputArea = document.getElementById('input-area');
 const submitBtn = document.getElementById('submit-btn');
 const fields = {{ fields_all | tojson }};
 let completed = fields.map(f => f.signed);
+
+// Charger et afficher le PDF dans le canvas
+const canvas = document.getElementById('pdf-canvas');
+const ctx = canvas.getContext('2d');
+const url = "/uploads/{{ pdf }}";
+
+pdfjsLib.getDocument(url).promise.then(pdf => {
+  return pdf.getPage(1).then(page => {
+    const viewport = page.getViewport({ scale: 1.5 });
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    return page.render({ canvasContext: ctx, viewport: viewport }).promise;
+  });
+});
 
 zones.forEach(zone => {
   const type = zone.dataset.type;
