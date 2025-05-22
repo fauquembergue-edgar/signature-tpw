@@ -119,12 +119,12 @@ def fill_field():
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
     if field['type'] == 'signature':
-    # On génère un fichier PDF avec la signature appliquée
-    pdf_input_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-    new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
-    new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-    apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
-    session_data['pdf'] = new_pdf_name
+        # On génère un fichier PDF avec la signature appliquée
+        pdf_input_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+        new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
+        new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
+        apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
+        session_data['pdf'] = new_pdf_name
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
