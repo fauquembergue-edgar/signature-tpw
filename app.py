@@ -118,13 +118,13 @@ def fill_field():
     field['value'] = data['value']
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-    if field['type'] == 'text':
-        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
-    elif field['type'] == 'signature':
-        sig_path = save_signature_image(data['value'], data['session_id'], data['field_index'])
-        output_path = os.path.join(UPLOAD_FOLDER, f"signed_{uuid.uuid4()}.pdf")
-        apply_signature(pdf_path, sig_path, output_path, field['x'], field['y'], scale=1.5)
-        session_data['pdf'] = os.path.basename(output_path)
+    if field['type'] == 'signature':
+    # On génère un fichier PDF avec la signature appliquée
+    pdf_input_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+    new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
+    new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
+    apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
+    session_data['pdf'] = new_pdf_name
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
@@ -189,34 +189,28 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
 def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     x /= scale
     y /= scale
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
+
+    # Convertir les données base64 en image
+    if sig_data.startswith("data:image/png;base64,"):
+        sig_data = sig_data.split(",")[1]
+    image_bytes = base64.b64decode(sig_data)
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+
+    # Créer un overlay PDF
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
 
-    temp_path = None
-
-    if isinstance(sig_data, str) and sig_data.startswith('data:image'):
-        # Cas d'un dessin (base64 PNG)
-        header, encoded = sig_data.split(",", 1)
-        image_data = base64.b64decode(encoded)
-        image = Image.open(io.BytesIO(image_data)).convert("RGB")
-        temp_path = f"/tmp/sig_{uuid.uuid4().hex}.jpg"
-        image.save(temp_path, "JPEG")
-        can.drawImage(temp_path, x, y, width=100, height=50, mask='auto')
-
-    elif isinstance(sig_data, str) and sig_data.strip() != "" and not sig_data.startswith('data:'):
-        # Cas d'une signature texte (ex: "T.D.")
-        can.setFont("Helvetica-Bold", 14)
-        can.drawString(x, y + 15, sig_data)
-
-    elif os.path.exists(sig_data):
-        # Cas d'une signature image PNG locale
-        can.drawImage(sig_data, x, y, width=100, height=50, mask='auto')
-
+    img_io = io.BytesIO()
+    image.save(img_io, format="PNG")
+    img_io.seek(0)
+    can.drawImage(ImageReader(img_io), x, y, width=100, height=50, mask='auto')
     can.save()
+
+    # Fusionner avec le PDF d'origine
     packet.seek(0)
     overlay = PdfReader(packet)
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
 
     for i, page in enumerate(reader.pages):
         if i == 0:
@@ -225,9 +219,6 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
 
     with open(output_path, 'wb') as f:
         writer.write(f)
-
-    if temp_path and os.path.exists(temp_path):
-        os.remove(temp_path)
 
 
 def save_signature_image(data_url, session_id, index):
