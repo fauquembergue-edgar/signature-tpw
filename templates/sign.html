@@ -16,7 +16,6 @@
       padding: 4px;
       font-size: 13px;
       z-index: 10;
-      transform: none;
     }
     .zone.locked {
       pointer-events: none;
@@ -73,6 +72,9 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf => {
         zone.dataset.index = index;
         zone.dataset.email = f.email;
         zone.textContent = f.type === 'signature' ? 'Signature' : 'Texte';
+        zone.style.position = 'absolute';
+        zone.style.zIndex = 10;
+        zone.style.background = 'rgba(255,255,255,0.9)';
         container.appendChild(zone);
 
         if (f.email === signEmail) {
@@ -118,7 +120,7 @@ function handleClick(zone, type, index) {
   if (type === 'signature') {
     inputArea.innerHTML = `
       <p>Signature :</p>
-      <input type="text" id="sigText" placeholder="Nom complet">
+      <input type="text" id="sigText" placeholder="Initiales ou nom">
       <button onclick="sendSigText(${index})">Valider texte</button><br><br>
       <input type="file" id="sigFile" accept="image/png">
       <button onclick="sendSigFile(${index})">Valider image</button><br><br>
