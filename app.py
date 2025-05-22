@@ -186,28 +186,47 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
     with open(pdf_path, 'wb') as f:
         writer.write(f)
 
-def apply_signature(pdf_path, sig_path, output_path, x, y, scale=1.5):
+def apply_signature(pdf_path, sig_path_or_dataurl, output_path, x, y, scale=1.5):
     x /= scale
     y /= scale
+
+    # Charger le PDF existant
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
+
+    # Créer un canvas temporaire
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
-    
-    # Convertir y pour reportlab (origine en bas à gauche)
-    y_reportlab = 792 - y - 50  # 50 = hauteur de l’image signature
 
-    can.drawImage(sig_path, x, y_reportlab, width=100, height=50)
+    # Si la signature est une DataURL base64 (dessin ou texte)
+    if isinstance(sig_path_or_dataurl, str) and sig_path_or_dataurl.startswith('data:image'):
+        # Convertir en image temporaire
+        header, encoded = sig_path_or_dataurl.split(",", 1)
+        image_data = base64.b64decode(encoded)
+        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        temp_path = sig_path = f"/tmp/sig_{uuid.uuid4().hex}.jpg"
+        image.save(temp_path, "JPEG")
+    else:
+        # Sinon, on suppose que c'est un fichier PNG existant
+        sig_path = sig_path_or_dataurl
+
+    # Appliquer la signature 20 pixels plus bas pour corriger la hauteur
+    can.drawImage(sig_path, x, y - 20, width=100, height=50, mask='auto')
     can.save()
     packet.seek(0)
-    sig_pdf = PdfReader(packet)
+
+    overlay = PdfReader(packet)
     for i, page in enumerate(reader.pages):
         if i == 0:
-            page.merge_page(sig_pdf.pages[0])
+            page.merge_page(overlay.pages[0])
         writer.add_page(page)
+
     with open(output_path, 'wb') as f:
         writer.write(f)
 
+    # Nettoyage si une image temporaire a été créée
+    if 'temp_path' in locals() and os.path.exists(temp_path):
+        os.remove(temp_path)
 
 def save_signature_image(data_url, session_id, index):
     if data_url.startswith("data:image/png;base64,"):
