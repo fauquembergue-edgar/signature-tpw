@@ -117,19 +117,14 @@ def fill_field():
     field = session_data['fields'][data['field_index']]
     field['value'] = data['value']
     field['signed'] = True
-
-    # Appliquer valeur dans le PDF
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-    if field['type'] == 'signature':
-        sig_path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}.png")
-        if data['value'].startswith('data:image'):
-            image_data = base64.b64decode(data['value'].split(',')[1])
-            with open(sig_path, 'wb') as imgf:
-                imgf.write(image_data)
-        apply_signature(pdf_path, sig_path, pdf_path, field['x'], field['y'], scale=1.5)
-    else:
+    if field['type'] == 'text':
         apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
-
+    elif field['type'] == 'signature':
+        sig_path = save_signature_image(data['value'], data['session_id'], data['field_index'])
+        output_path = os.path.join(UPLOAD_FOLDER, f"signed_{uuid.uuid4()}.pdf")
+        apply_signature(pdf_path, sig_path, output_path, field['x'], field['y'], scale=1.5)
+        session_data['pdf'] = os.path.basename(output_path)
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
@@ -140,21 +135,17 @@ def finalise_signature():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
-
     all_fields = session_data['fields']
     signed_steps = set(f['step'] for f in all_fields if f['signed'])
     remaining = [f for f in all_fields if not f['signed']]
-
     if remaining:
         next_step = min(f['step'] for f in remaining)
         if next_step not in signed_steps:
             send_email(data['session_id'], next_step)
     else:
         send_pdf_to_all(session_data)
-
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
-
     return jsonify({'status': 'finalised'})
 
 @app.route('/session/<session_id>/status')
@@ -168,13 +159,14 @@ def status(session_id):
 def apply_text(pdf_path, x, y, text, scale=1.5):
     x /= scale
     y /= scale
-    y_pdf = letter[1] - y
+    x_pdf = x + 5
+    y_pdf = letter[1] - y - 10
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
     can.setFont("Helvetica", 12)
-    can.drawString(x, y_pdf, text)
+    can.drawString(x_pdf, y_pdf, text)
     can.save()
     packet.seek(0)
     overlay = PdfReader(packet)
@@ -188,12 +180,13 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
 def apply_signature(pdf_path, sig_path, output_path, x, y, scale=1.5):
     x /= scale
     y /= scale
-    y_pdf = letter[1] - y - 50
+    x_pdf = x + 5
+    y_pdf = letter[1] - y - 10
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
-    can.drawImage(sig_path, x, y_pdf, width=100, height=50, mask='auto')
+    can.drawImage(sig_path, x_pdf, y_pdf, width=100, height=50, mask='auto')
     can.save()
     packet.seek(0)
     sig_pdf = PdfReader(packet)
@@ -203,6 +196,15 @@ def apply_signature(pdf_path, sig_path, output_path, x, y, scale=1.5):
         writer.add_page(page)
     with open(output_path, 'wb') as f:
         writer.write(f)
+
+def save_signature_image(data_url, session_id, index):
+    if data_url.startswith("data:image/png;base64,"):
+        data_url = data_url.replace("data:image/png;base64,", "")
+    sig_data = base64.b64decode(data_url)
+    sig_path = os.path.join(UPLOAD_FOLDER, f"{session_id}_sig_{index}.png")
+    with open(sig_path, 'wb') as f:
+        f.write(sig_data)
+    return sig_path
 
 def send_email(session_id, step):
     with open(os.path.join(SESSION_FOLDER, f"{session_id}.json")) as f:
