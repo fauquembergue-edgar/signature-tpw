@@ -136,12 +136,17 @@ def finalise_signature():
     with open(session_path) as f:
         session_data = json.load(f)
     all_fields = session_data['fields']
-    signed_steps = set(f['step'] for f in all_fields if f['signed'])
+    current_step = max(f['step'] for f in all_fields if f['signed']) if any(f['signed'] for f in all_fields) else 0
+remaining_fields_same_step = [f for f in all_fields if f['step'] == current_step and not f['signed']]
+
+if remaining_fields_same_step:
+    # Ne pas envoyer l'email suivant car le signataire courant n’a pas fini
+    return jsonify({'status': 'incomplete'})
+else:
     remaining = [f for f in all_fields if not f['signed']]
     if remaining:
         next_step = min(f['step'] for f in remaining)
-        if next_step not in signed_steps:
-            send_email(data['session_id'], next_step)
+        send_email(data['session_id'], next_step)
     else:
         send_pdf_to_all(session_data)
     with open(session_path, 'w') as f:
