@@ -135,23 +135,27 @@ def finalise_signature():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
+
     all_fields = session_data['fields']
     current_step = max(f['step'] for f in all_fields if f['signed']) if any(f['signed'] for f in all_fields) else 0
-remaining_fields_same_step = [f for f in all_fields if f['step'] == current_step and not f['signed']]
+    remaining_fields_same_step = [f for f in all_fields if f['step'] == current_step and not f['signed']]
 
-if remaining_fields_same_step:
-    # Ne pas envoyer l'email suivant car le signataire courant n’a pas fini
-    return jsonify({'status': 'incomplete'})
-else:
-    remaining = [f for f in all_fields if not f['signed']]
-    if remaining:
-        next_step = min(f['step'] for f in remaining)
-        send_email(data['session_id'], next_step)
+    if remaining_fields_same_step:
+        # Ne pas envoyer l'email suivant car le signataire courant n’a pas fini
+        return jsonify({'status': 'incomplete'})
     else:
-        send_pdf_to_all(session_data)
-    with open(session_path, 'w') as f:
-        json.dump(session_data, f)
-    return jsonify({'status': 'finalised'})
+        remaining = [f for f in all_fields if not f['signed']]
+        if remaining:
+            next_step = min(f['step'] for f in remaining)
+            send_email(data['session_id'], next_step)
+        else:
+            send_pdf_to_all(session_data)
+
+        with open(session_path, 'w') as f:
+            json.dump(session_data, f)
+
+        return jsonify({'status': 'finalised'})
+
 
 @app.route('/session/<session_id>/status')
 def status(session_id):
