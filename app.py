@@ -114,14 +114,43 @@ def fill_field():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
+
     field = session_data['fields'][data['field_index']]
     field['value'] = data['value']
     field['signed'] = True
-    apply_text(os.path.join(UPLOAD_FOLDER, session_data['pdf']),
-           field['x'], field['y'], data['value'], scale=1.5)
+
+    pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+
+    # Appliquer au PDF selon le type
+    if field['type'] == 'text':
+        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
+    elif field['type'] == 'signature':
+        sig_data = data['value']
+        sig_path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}_sig.png")
+
+        # Si la valeur est une image encodée en base64 (dessin ou PNG)
+        if sig_data.startswith("data:image/png;base64,"):
+            sig_data = sig_data.split(",")[1]
+            with open(sig_path, "wb") as out:
+                out.write(base64.b64decode(sig_data))
+        else:
+            # Générer une image avec le texte
+            img = Image.new('RGB', (400, 100), color='white')
+            d = ImageDraw.Draw(img)
+            d.text((10, 40), sig_data, fill='black')
+            img.save(sig_path)
+
+        new_pdf_path = os.path.join(UPLOAD_FOLDER, f"signed_{uuid.uuid4().hex}.pdf")
+        apply_signature(pdf_path, sig_path, new_pdf_path, field['x'], field['y'], scale=1.5)
+
+        # Remplacer le PDF dans la session par la nouvelle version signée
+        session_data['pdf'] = os.path.basename(new_pdf_path)
+
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
+
     return jsonify({'status': 'ok'})
+
 
 @app.route('/finalise-signature', methods=['POST'])
 def finalise_signature():
