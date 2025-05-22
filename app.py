@@ -185,13 +185,15 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
 def apply_signature(pdf_path, sig_path, output_path, x, y, scale=1.5):
     x /= scale
     y /= scale
-    x_pdf = x + 5
-    y_pdf = letter[1] - y - 10
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
-    can.drawImage(sig_path, x_pdf, y_pdf, width=100, height=50, mask='auto')
+    
+    # Convertir y pour reportlab (origine en bas à gauche)
+    y_reportlab = 792 - y - 50  # 50 = hauteur de l’image signature
+
+    can.drawImage(sig_path, x, y_reportlab, width=100, height=50)
     can.save()
     packet.seek(0)
     sig_pdf = PdfReader(packet)
@@ -201,6 +203,7 @@ def apply_signature(pdf_path, sig_path, output_path, x, y, scale=1.5):
         writer.add_page(page)
     with open(output_path, 'wb') as f:
         writer.write(f)
+
 
 def save_signature_image(data_url, session_id, index):
     if data_url.startswith("data:image/png;base64,"):
