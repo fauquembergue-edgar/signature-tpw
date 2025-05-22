@@ -11,6 +11,8 @@ from reportlab.lib.pagesizes import letter
 from dotenv import load_dotenv
 import io
 from PIL import Image, ImageDraw
+from reportlab.lib.utils import ImageReader
+
 
 load_dotenv()
 
@@ -119,14 +121,15 @@ def fill_field():
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
     if field['type'] == 'signature':
-        # On génère un fichier PDF avec la signature appliquée
         pdf_input_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
         apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
-    with open(session_path, 'w') as f:
-        json.dump(session_data, f)
+    else:
+        apply_text(os.path.join(UPLOAD_FOLDER, session_data['pdf']),
+               field['x'], field['y'], data['value'], scale=1.5)
+
     return jsonify({'status': 'ok'})
 
 @app.route('/finalise-signature', methods=['POST'])
@@ -190,23 +193,24 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     x /= scale
     y /= scale
 
-    # Convertir les données base64 en image
+    # Décoder l'image base64
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",")[1]
     image_bytes = base64.b64decode(sig_data)
     image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
 
-    # Créer un overlay PDF
+    # Créer un PDF overlay avec la signature
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
 
     img_io = io.BytesIO()
     image.save(img_io, format="PNG")
     img_io.seek(0)
+
     can.drawImage(ImageReader(img_io), x, y, width=100, height=50, mask='auto')
     can.save()
 
-    # Fusionner avec le PDF d'origine
+    # Fusionner le PDF
     packet.seek(0)
     overlay = PdfReader(packet)
     reader = PdfReader(pdf_path)
