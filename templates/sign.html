@@ -16,6 +16,7 @@
       padding: 4px;
       font-size: 13px;
       z-index: 10;
+      transform: none;
     }
     .zone.locked {
       pointer-events: none;
@@ -65,16 +66,13 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf => {
         const zone = document.createElement('div');
         zone.className = 'zone';
         if (f.email !== signEmail) zone.classList.add('locked');
-        zone.style.left = `${f.x * scale}px`;
-        zone.style.top = `${f.y * scale}px`;
+        zone.style.left = `${(f.x - 2) * scale}px`;  // correction fine sur x
+        zone.style.top = `${(f.y - 5) * scale}px`;   // correction fine sur y
         zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
         zone.dataset.type = f.type;
         zone.dataset.index = index;
         zone.dataset.email = f.email;
         zone.textContent = f.type === 'signature' ? 'Signature' : 'Texte';
-        zone.style.position = 'absolute';
-        zone.style.zIndex = 10;
-        zone.style.background = 'rgba(255,255,255,0.9)';
         container.appendChild(zone);
 
         if (f.email === signEmail) {
@@ -120,8 +118,6 @@ function handleClick(zone, type, index) {
   if (type === 'signature') {
     inputArea.innerHTML = `
       <p>Signature :</p>
-      <input type="text" id="sigText" placeholder="Initiales ou nom">
-      <button onclick="sendSigText(${index})">Valider texte</button><br><br>
       <input type="file" id="sigFile" accept="image/png">
       <button onclick="sendSigFile(${index})">Valider image</button><br><br>
       <canvas id="sigCanvas" width="300" height="100"></canvas><br>
@@ -140,17 +136,6 @@ function handleClick(zone, type, index) {
       ctx.stroke();
     };
   }
-}
-
-function sendSigText(index) {
-  const val = document.getElementById('sigText').value;
-  fetch('/fill-field', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, step: step, field_index: index, value: val })
-  }).then(() => {
-    updateZone(index);
-  });
 }
 
 function sendSigFile(index) {
