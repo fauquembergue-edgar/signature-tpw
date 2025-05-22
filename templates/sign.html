@@ -191,8 +191,7 @@ submitBtn.onclick = () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId })
   }).then(() => {
-    alert("Signature finalisée. Le document est transmis.");
-    location.href = "/";
+    alert("Signature finalisée. Vous pouvez fermer cette page.");
   });
 };
 </script>
