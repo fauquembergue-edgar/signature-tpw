@@ -146,12 +146,14 @@ def finalise_signature():
         session_data = json.load(f)
 
     all_fields = session_data['fields']
+    session_id = data['session_id']
     signed_steps = set(f['step'] for f in all_fields if f['signed'])
     remaining = [f for f in all_fields if not f['signed']]
+
     if remaining:
         next_step = min(f['step'] for f in remaining)
         if next_step not in signed_steps:
-            send_email(data['session_id'], next_step)
+            send_email(session_id, next_step)
     else:
         send_pdf_to_all(session_data)
 
@@ -159,6 +161,7 @@ def finalise_signature():
         json.dump(session_data, f)
 
     return jsonify({'status': 'finalised'})
+
 
 @app.route('/session/<session_id>/status')
 def status(session_id):
