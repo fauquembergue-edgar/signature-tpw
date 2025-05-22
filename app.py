@@ -118,7 +118,7 @@ def fill_field():
     field['value'] = data['value']
     field['signed'] = True
     apply_text(os.path.join(UPLOAD_FOLDER, session_data['pdf']),
-               field['x'], field['y'], data['value'])
+           field['x'], field['y'], data['value'], scale=1.5)
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
@@ -154,7 +154,9 @@ def status(session_id):
     done = all(f['signed'] for f in session_data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
-def apply_text(pdf_path, x, y, text):
+def apply_text(pdf_path, x, y, text, scale=1.5):
+    x /= scale
+    y /= scale
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
@@ -170,6 +172,25 @@ def apply_text(pdf_path, x, y, text):
         writer.add_page(page)
     with open(pdf_path, 'wb') as f:
         writer.write(f)
+
+def apply_signature(pdf_path, sig_path, output_path, x, y, scale=1.5):
+    x /= scale
+    y /= scale
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=letter)
+    can.drawImage(sig_path, x, y, width=100, height=50)
+    can.save()
+    packet.seek(0)
+    sig_pdf = PdfReader(packet)
+    for i, page in enumerate(reader.pages):
+        if i == 0:
+            page.merge_page(sig_pdf.pages[0])
+        writer.add_page(page)
+    with open(output_path, 'wb') as f:
+        writer.write(f)
+
 
 def send_email(session_id, step):
     with open(os.path.join(SESSION_FOLDER, f"{session_id}.json")) as f:
