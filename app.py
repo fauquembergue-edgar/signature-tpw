@@ -79,14 +79,10 @@ def define_fields():
     session_id = str(uuid.uuid4())
     pdf_file = data['pdf']
     fields = data['fields']
-
-    scale = 1.5
-    for field in fields:
+    for i, field in enumerate(fields):
         field['signed'] = False
         field['value'] = ''
-        field['x'] = round(field['x'] / scale, 2)
-        field['y'] = round(field['y'] / scale, 2)
-
+        field['step'] = i  # step = ordre de passage
     session_data = {
         'pdf': pdf_file,
         'fields': fields,
@@ -95,7 +91,6 @@ def define_fields():
     }
     with open(os.path.join(SESSION_FOLDER, f'{session_id}.json'), 'w') as f:
         json.dump(session_data, f)
-
     send_email(session_id, step=0)
     return render_template("notified.html", session_id=session_id)
 
@@ -122,20 +117,10 @@ def fill_field():
     field = session_data['fields'][data['field_index']]
     field['value'] = data['value']
     field['signed'] = True
-
-    if field['type'] == 'signature':
-        if data['value'].startswith('data:image/png;base64,'):
-            field['mode'] = 'draw'
-        elif data['value'].startswith('data:image'):
-            field['mode'] = 'image'
-        else:
-            field['mode'] = 'text'
-    else:
-        field['mode'] = 'text'
-
+    apply_text(os.path.join(UPLOAD_FOLDER, session_data['pdf']),
+               field['x'], field['y'], data['value'])
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
-
     return jsonify({'status': 'ok'})
 
 @app.route('/finalise-signature', methods=['POST'])
@@ -146,14 +131,13 @@ def finalise_signature():
         session_data = json.load(f)
 
     all_fields = session_data['fields']
-    session_id = data['session_id']
     signed_steps = set(f['step'] for f in all_fields if f['signed'])
     remaining = [f for f in all_fields if not f['signed']]
 
     if remaining:
         next_step = min(f['step'] for f in remaining)
         if next_step not in signed_steps:
-            send_email(session_id, next_step)
+            send_email(data['session_id'], next_step)
     else:
         send_pdf_to_all(session_data)
 
@@ -162,7 +146,6 @@ def finalise_signature():
 
     return jsonify({'status': 'finalised'})
 
-
 @app.route('/session/<session_id>/status')
 def status(session_id):
     path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
@@ -170,6 +153,23 @@ def status(session_id):
         session_data = json.load(f)
     done = all(f['signed'] for f in session_data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
+
+def apply_text(pdf_path, x, y, text):
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=letter)
+    can.setFont("Helvetica", 12)
+    can.drawString(x, y, text)
+    can.save()
+    packet.seek(0)
+    overlay = PdfReader(packet)
+    for i, page in enumerate(reader.pages):
+        if i == 0:
+            page.merge_page(overlay.pages[0])
+        writer.add_page(page)
+    with open(pdf_path, 'wb') as f:
+        writer.write(f)
 
 def send_email(session_id, step):
     with open(os.path.join(SESSION_FOLDER, f"{session_id}.json")) as f:
@@ -182,7 +182,7 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"Bonjour,\n\nVeuillez signer ce document : {app_url}/sign/{session_id}/{step}")
+    msg.set_content(f"Bonjour, veuillez signer ici : {app_url}/sign/{session_id}/{step}")
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
@@ -194,67 +194,28 @@ def send_email(session_id, step):
 
 def send_pdf_to_all(session_data):
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-    temp_output = os.path.join(UPLOAD_FOLDER, f"final_{uuid.uuid4()}.pdf")
-
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=letter)
-
-    for field in session_data['fields']:
-        x = field['x']
-        y = field['y']
-        value = field.get('value', '')
-
-        if field['type'] == 'text':
-            can.setFont("Helvetica", 12)
-            can.drawString(x, y, value)
-
-        elif field['type'] == 'signature':
-            if field.get('mode') == 'draw' or field.get('mode') == 'image':
-                sig_data = base64.b64decode(value.split(',')[1])
-                sig_path = os.path.join(UPLOAD_FOLDER, f"sig_{uuid.uuid4()}.png")
-                with open(sig_path, 'wb') as f:
-                    f.write(sig_data)
-                can.drawImage(sig_path, x, y, width=100, height=50)
-                os.remove(sig_path)
-            else:
-                can.setFont("Helvetica-Bold", 12)
-                can.drawString(x, y, value)
-
-    can.save()
-    packet.seek(0)
-    overlay = PdfReader(packet)
-
-    for i, page in enumerate(reader.pages):
-        if i == 0:
-            page.merge_page(overlay.pages[0])
-        writer.add_page(page)
-
-    with open(temp_output, 'wb') as f:
-        writer.write(f)
-
-    with open(temp_output, 'rb') as f:
+    with open(pdf_path, 'rb') as f:
         content = f.read()
 
-    recipients = set(f['email'] for f in session_data['fields'] if f['email'])
-    for recipient in recipients:
-        msg = EmailMessage()
-        msg['Subject'] = 'Document signé final'
-        msg['From'] = os.getenv('SMTP_USER')
-        msg['To'] = recipient
-        msg.set_content('Voici le PDF final signé.')
-        msg.add_attachment(content, maintype='application', subtype='pdf', filename=os.path.basename(temp_output))
-        try:
-            with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
-                server.starttls()
-                server.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASS'))
-                server.send_message(msg)
-        except Exception as e:
-            with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                log.write(f"[ERROR] PDF à {recipient} : {e}\n")
-
-    os.remove(temp_output)
+    sent = set()
+    for f in session_data['fields']:
+        recipient = f['email']
+        if recipient and recipient not in sent:
+            sent.add(recipient)
+            msg = EmailMessage()
+            msg['Subject'] = 'Document signé final'
+            msg['From'] = os.getenv('SMTP_USER')
+            msg['To'] = recipient
+            msg.set_content('Voici le PDF final signé.')
+            msg.add_attachment(content, maintype='application', subtype='pdf', filename=session_data['pdf'])
+            try:
+                with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
+                    server.starttls()
+                    server.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASS'))
+                    server.send_message(msg)
+            except Exception as e:
+                with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
+                    log.write(f"[ERROR] PDF à {recipient} : {e}\n")
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
