@@ -66,8 +66,8 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf => {
         const zone = document.createElement('div');
         zone.className = 'zone';
         if (f.email !== signEmail) zone.classList.add('locked');
-        zone.style.left = `${(f.x - 2) * scale}px`;  // correction fine sur x
-        zone.style.top = `${(f.y - 5) * scale}px`;   // correction fine sur y
+        zone.style.left = `${(f.x * scale)}px`;
+        zone.style.top = `${(f.y * scale)}px`;
         zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
         zone.dataset.type = f.type;
         zone.dataset.index = index;
