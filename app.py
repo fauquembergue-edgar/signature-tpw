@@ -79,14 +79,15 @@ def define_fields():
     session_id = str(uuid.uuid4())
     pdf_file = data['pdf']
     fields = data['fields']
-    step_counter = {}
+
+    # ✅ Appliquer l’échelle inverse car les coords sont captées avec scale dans l’interface
+    scale = 1.5
     for field in fields:
-        email = field['email']
-        if email not in step_counter:
-            step_counter[email] = len(step_counter)
-        field['step'] = step_counter[email]
         field['signed'] = False
         field['value'] = ''
+        field['x'] = round(field['x'] / scale, 2)
+        field['y'] = round(field['y'] / scale, 2)
+
     session_data = {
         'pdf': pdf_file,
         'fields': fields,
@@ -95,6 +96,7 @@ def define_fields():
     }
     with open(os.path.join(SESSION_FOLDER, f'{session_id}.json'), 'w') as f:
         json.dump(session_data, f)
+
     send_email(session_id, step=0)
     return render_template("notified.html", session_id=session_id)
 
@@ -109,7 +111,7 @@ def sign(session_id, step):
                            pdf=session_data['pdf'],
                            session_id=session_id,
                            step=step,
-                           email=fields[0]['email'] if fields else '' ,
+                           email=fields[0]['email'],
                            fields_all=session_data['fields'])
 
 @app.route('/fill-field', methods=['POST'])
@@ -121,16 +123,8 @@ def fill_field():
     field = session_data['fields'][data['field_index']]
     field['value'] = data['value']
     field['signed'] = True
-    if isinstance(data['value'], str) and data['value'].startswith('data:image'):
-        sig_data = base64.b64decode(data['value'].split(',')[1])
-        sig_path = os.path.join(UPLOAD_FOLDER, f"{data['session_id']}_{data['field_index']}.png")
-        with open(sig_path, 'wb') as fimg:
-            fimg.write(sig_data)
-        new_pdf_path = os.path.join(UPLOAD_FOLDER, f"signed_{uuid.uuid4()}.pdf")
-        apply_signature(os.path.join(UPLOAD_FOLDER, session_data['pdf']), sig_path, new_pdf_path, field['x'], field['y'])
-        session_data['pdf'] = os.path.basename(new_pdf_path)
-    else:
-        apply_text(os.path.join(UPLOAD_FOLDER, session_data['pdf']), field['x'], field['y'], data['value'])
+    apply_text(os.path.join(UPLOAD_FOLDER, session_data['pdf']),
+               field['x'], field['y'], data['value'])
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
@@ -141,6 +135,7 @@ def finalise_signature():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
+
     all_fields = session_data['fields']
     signed_steps = set(f['step'] for f in all_fields if f['signed'])
     remaining = [f for f in all_fields if not f['signed']]
@@ -150,8 +145,10 @@ def finalise_signature():
             send_email(data['session_id'], next_step)
     else:
         send_pdf_to_all(session_data)
+
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
+
     return jsonify({'status': 'finalised'})
 
 @app.route('/session/<session_id>/status')
@@ -161,22 +158,6 @@ def status(session_id):
         session_data = json.load(f)
     done = all(f['signed'] for f in session_data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
-
-def apply_signature(pdf_path, sig_path, output_path, x, y):
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=letter)
-    can.drawImage(sig_path, x, y, width=100, height=50)
-    can.save()
-    packet.seek(0)
-    sig_pdf = PdfReader(packet)
-    for i, page in enumerate(reader.pages):
-        if i == 0:
-            page.merge_page(sig_pdf.pages[0])
-        writer.add_page(page)
-    with open(output_path, 'wb') as f:
-        writer.write(f)
 
 def apply_text(pdf_path, x, y, text):
     reader = PdfReader(pdf_path)
@@ -206,8 +187,7 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    message = data.get('email_message', '')
-    msg.set_content(f"{message}\n\nCliquez ici : {app_url}/sign/{session_id}/{step}")
+    msg.set_content(f"Bonjour,\n\nVeuillez signer ce document : {app_url}/sign/{session_id}/{step}")
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
