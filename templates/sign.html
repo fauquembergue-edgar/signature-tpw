@@ -37,15 +37,6 @@
 
   <div class="pdf-wrapper" id="pdf-container">
     <canvas id="pdf-canvas"></canvas>
-    {% for f in fields_json %}
-      <div class="zone {% if f.email != email %}locked{% endif %}"
-           style="left: {{ f.x }}px; top: {{ f.y }}px; border-color: {{ '#FF5733' if f.email == email else '#ccc' }};"
-           data-type="{{ f.type }}"
-           data-index="{{ loop.index0 }}"
-           data-email="{{ f.email }}">
-        {{ 'Signature' if f.type == 'signature' else 'Texte' }}
-      </div>
-    {% endfor %}
   </div>
 
   <div id="input-area"></div>
@@ -55,90 +46,99 @@
 const sessionId = "{{ session_id }}";
 const step = {{ step }};
 const signEmail = "{{ email }}";
-const zones = document.querySelectorAll('.zone');
+const fields = {{ fields_all | tojson }};
 const inputArea = document.getElementById('input-area');
 const submitBtn = document.getElementById('submit-btn');
-const fields = {{ fields_all | tojson }};
 let completed = fields.map(f => f.signed);
 
-// Charger et afficher le PDF dans le canvas
+const scale = 1.5;
 const canvas = document.getElementById('pdf-canvas');
 const ctx = canvas.getContext('2d');
-const url = "/uploads/{{ pdf }}";
+const container = document.getElementById('pdf-container');
 
-pdfjsLib.getDocument(url).promise.then(pdf => {
+pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf => {
   return pdf.getPage(1).then(page => {
-    const viewport = page.getViewport({ scale: 1.5 });
-    canvas.height = viewport.height;
+    const viewport = page.getViewport({ scale });
     canvas.width = viewport.width;
-    return page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    canvas.height = viewport.height;
+    return page.render({ canvasContext: ctx, viewport }).promise.then(() => {
+      fields.forEach((f, index) => {
+        const zone = document.createElement('div');
+        zone.className = 'zone';
+        if (f.email !== signEmail) zone.classList.add('locked');
+        zone.style.left = `${f.x * scale}px`;
+        zone.style.top = `${f.y * scale}px`;
+        zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
+        zone.dataset.type = f.type;
+        zone.dataset.index = index;
+        zone.dataset.email = f.email;
+        zone.textContent = f.type === 'signature' ? 'Signature' : 'Texte';
+        container.appendChild(zone);
+
+        if (f.email === signEmail) {
+          zone.addEventListener('click', () => handleClick(zone, f.type, index));
+        }
+      });
+    });
   });
 });
 
-zones.forEach(zone => {
-  const type = zone.dataset.type;
-  const index = parseInt(zone.dataset.index);
-  const email = zone.dataset.email;
+function handleClick(zone, type, index) {
+  inputArea.innerHTML = '';
 
-  if (email !== signEmail) return;
+  if (type === 'text') {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Votre réponse';
+    const submit = document.createElement('button');
+    submit.textContent = 'Valider';
+    submit.onclick = () => {
+      fetch('/fill-field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          step: step,
+          field_index: index,
+          value: input.value
+        })
+      }).then(() => {
+        zone.textContent = input.value;
+        zone.style.border = '2px solid green';
+        zone.classList.add('locked');
+        completed[index] = true;
+        inputArea.innerHTML = '';
+        checkCompletion();
+      });
+    };
+    inputArea.appendChild(input);
+    inputArea.appendChild(submit);
+  }
 
-  zone.addEventListener('click', () => {
-    inputArea.innerHTML = '';
-
-    if (type === 'text') {
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.placeholder = 'Votre réponse';
-      const submit = document.createElement('button');
-      submit.textContent = 'Valider';
-      submit.onclick = () => {
-        fetch('/fill-field', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: sessionId,
-            step: step,
-            field_index: index,
-            value: input.value
-          })
-        }).then(() => {
-          zone.textContent = input.value;
-          zone.style.border = '2px solid green';
-          zone.classList.add('locked');
-          completed[index] = true;
-          inputArea.innerHTML = '';
-          checkCompletion();
-        });
-      };
-      inputArea.appendChild(input);
-      inputArea.appendChild(submit);
-    }
-
-    if (type === 'signature') {
-      inputArea.innerHTML = `
-        <p>Signature :</p>
-        <input type="text" id="sigText" placeholder="Nom complet">
-        <button onclick="sendSigText(${index})">Valider texte</button><br><br>
-        <input type="file" id="sigFile" accept="image/png">
-        <button onclick="sendSigFile(${index})">Valider image</button><br><br>
-        <canvas id="sigCanvas" width="300" height="100"></canvas><br>
-        <button onclick="sendSigDraw(${index})">Valider dessin</button>
-      `;
-      const canvas = document.getElementById('sigCanvas');
-      const ctx = canvas.getContext('2d');
-      let drawing = false;
-      canvas.onmousedown = () => { drawing = true; ctx.beginPath(); };
-      canvas.onmouseup = () => { drawing = false; };
-      canvas.onmousemove = e => {
-        if (!drawing) return;
-        const rect = canvas.getBoundingClientRect();
-        ctx.lineWidth = 2;
-        ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-        ctx.stroke();
-      };
-    }
-  });
-});
+  if (type === 'signature') {
+    inputArea.innerHTML = `
+      <p>Signature :</p>
+      <input type="text" id="sigText" placeholder="Nom complet">
+      <button onclick="sendSigText(${index})">Valider texte</button><br><br>
+      <input type="file" id="sigFile" accept="image/png">
+      <button onclick="sendSigFile(${index})">Valider image</button><br><br>
+      <canvas id="sigCanvas" width="300" height="100"></canvas><br>
+      <button onclick="sendSigDraw(${index})">Valider dessin</button>
+    `;
+    const canvas = document.getElementById('sigCanvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    canvas.onmousedown = () => { drawing = true; ctx.beginPath(); };
+    canvas.onmouseup = () => { drawing = false; };
+    canvas.onmousemove = e => {
+      if (!drawing) return;
+      const rect = canvas.getBoundingClientRect();
+      ctx.lineWidth = 2;
+      ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+      ctx.stroke();
+    };
+  }
+}
 
 function sendSigText(index) {
   const val = document.getElementById('sigText').value;
