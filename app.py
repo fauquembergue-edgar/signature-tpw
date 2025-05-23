@@ -111,15 +111,18 @@ def sign(session_id, step):
                            fields_all=session_data['fields'])
 
 @app.route('/fill-field', methods=['POST'])
+@app.route('/fill-field', methods=['POST'])
 def fill_field():
     data = request.get_json()
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
+
     field = session_data['fields'][data['field_index']]
     field['value'] = data['value']
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+
     if field['type'] == 'signature':
         pdf_input_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
@@ -127,10 +130,14 @@ def fill_field():
         apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
     else:
-        apply_text(os.path.join(UPLOAD_FOLDER, session_data['pdf']),
-               field['x'], field['y'], data['value'], scale=1.5)
+        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
+
+    # 🔥 AJOUT ESSENTIEL : on enregistre les changements dans session_data
+    with open(session_path, 'w') as f:
+        json.dump(session_data, f)
 
     return jsonify({'status': 'ok'})
+
 
 @app.route('/finalise-signature', methods=['POST'])
 def finalise_signature():
