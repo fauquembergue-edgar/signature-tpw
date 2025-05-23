@@ -1,7 +1,6 @@
 # config.py
 import os
-from pydantic_settings import BaseSettings
-from pydantic import EmailStr, HttpUrl
+from pydantic import BaseSettings, EmailStr, HttpUrl
 
 class Settings(BaseSettings):
     FLASK_ENV: str = "production"

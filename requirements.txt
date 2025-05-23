@@ -2,7 +2,6 @@ Flask
 Flask-SQLAlchemy
 python-dotenv
 pydantic<2
-pydantic-settings
 reportlab
 PyPDF2
 Pillow
