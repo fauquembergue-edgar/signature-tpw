@@ -6,3 +6,4 @@ reportlab
 PyPDF2
 Pillow
 gunicorn
+email-validator
