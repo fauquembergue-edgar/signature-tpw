@@ -1,7 +1,7 @@
 # config.py
-# Configuration de l application avec valeurs par defaut cadres
+# Configuration de l application
 import os
-from pydantic import BaseSettings, EmailStr, HttpUrl
+from pydantic import BaseSettings, EmailStr
 
 class Settings(BaseSettings):
     FLASK_ENV: str = "production"
@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: EmailStr = "fauquember@cy-tech.fr"
     SMTP_PASS: str = "icvj rchk xsyt mgos"
-    BASE_URL: HttpUrl = "http://localhost:5000"
+    BASE_URL: str = "http://localhost:5000"  # type as str to avoid HttpUrl validation
 
     MAX_PDF_SIZE_MB: int = 10
     SQLALCHEMY_DATABASE_URI: str = os.getenv("SQLALCHEMY_DATABASE_URI", "sqlite:////tmp/signature.db")
