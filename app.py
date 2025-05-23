@@ -127,7 +127,7 @@ def fill_field():
         pdf_input_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
+        apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'])
         session_data['pdf'] = new_pdf_name
     else:
         apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
