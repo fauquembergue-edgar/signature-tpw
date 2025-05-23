@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: signature-app
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app --bind 0.0.0.0:$PORT

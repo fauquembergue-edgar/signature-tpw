@@ -30,8 +30,9 @@ def upload_pdf():
     db.session.add(session)
     db.session.commit()
 
-    # creation et fusion de l overlay (ex coords fixes)
-    overlay = create_overlay("sig.png", (100,100))
+    # creation et fusion de l overlay (coords fixes)
+    sig_path = os.path.join(current_app.static_folder, 'sig.png')
+    overlay = create_overlay(sig_path, (100,100))
     out_stream = BytesIO()
     merge_pdfs(open(pdf_path,"rb"), overlay, out_stream)
 

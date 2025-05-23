@@ -5,3 +5,5 @@ pydantic
 reportlab
 PyPDF2
 Pillow
+gunicorn
+psycopg2-binary
