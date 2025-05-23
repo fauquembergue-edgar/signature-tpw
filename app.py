@@ -277,7 +277,6 @@ def send_email(session_id, step):
             server.send_message(msg)
     except Exception as e:
         logger.error(f"Erreur SMTP pour {recipient} : {e}")
-            log.write(f"[ERROR] email vers {recipient} : {e}\n")
 
 def send_pdf_to_all(session_data):
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
@@ -306,7 +305,6 @@ def send_pdf_to_all(session_data):
                     server.send_message(msg)
             except Exception as e:
                 logger.error(f"Erreur SMTP pour {recipient} : {e}")
-                    log.write(f"[ERROR] PDF à {recipient} : {e}\n")
 
 
 if __name__ == '__main__':
