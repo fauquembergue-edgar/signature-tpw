@@ -1,4 +1,5 @@
 Flask
-PyPDF2
-reportlab
 python-dotenv
+reportlab
+PyPDF2
+Pillow
