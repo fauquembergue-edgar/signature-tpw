@@ -10,8 +10,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int
     SMTP_USER: EmailStr
     SMTP_PASS: str
-    BASE_URL: HttpUrl  # ex. https://monsite.com
-
+    BASE_URL: HttpUrl
     MAX_PDF_SIZE_MB: int = 10
     SQLALCHEMY_DATABASE_URI: str = os.getenv("SQLALCHEMY_DATABASE_URI", "sqlite:////tmp/signature.db")
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
