@@ -175,10 +175,9 @@ def status(session_id):
     done = all(f['signed'] for f in session_data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
-def apply_text(pdf_path, x, y, text, scale=1.5):
-    # Convertir en coordonnées PDF sans décalage artificiel
-    x_pdf = x / scale
-    y_pdf = (letter[1] - y / scale)
+def apply_text(pdf_path, x, y, text, pdf_width=letter[0], pdf_height=letter[1]):
+    x_pdf = x * (pdf_width / 1000)
+    y_pdf = pdf_height - (y * (pdf_height / 1400))
 
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
@@ -201,17 +200,17 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
 
 
 
-def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
+def apply_signature(pdf_path, sig_data, output_path, x, y, pdf_width=letter[0], pdf_height=letter[1]):
     from reportlab.lib.utils import ImageReader
 
     width, height = 100, 40
-    x_pdf = x / scale
-    y_pdf = (letter[1] - y / scale - height)
+    x_pdf = x * (pdf_width / 1000)
+    y_pdf = pdf_height - (y * (pdf_height / 1400)) - height
 
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",")[1]
     image_bytes = base64.b64decode(sig_data)
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")  # Preserve transparency
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
 
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
@@ -257,8 +256,8 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"{data.get('message', 'Bonjour, veuillez signer ici :')}\n{app_url}/sign/{session_id}/{step}")
-
+    msg.set_content(f"{data.get('message', 'Bonjour, veuillez signer ici :')}
+{app_url}/sign/{session_id}/{step}")
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
