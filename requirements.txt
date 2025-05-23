@@ -6,4 +6,5 @@ pydantic-settings
 reportlab
 PyPDF2
 Pillow
+wheel
 gunicorn
