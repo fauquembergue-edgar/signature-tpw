@@ -153,11 +153,12 @@ def finalise_signature():
     if remaining_fields_same_step:
         # Ne pas envoyer l'email suivant car le signataire courant n’a pas fini
         return jsonify({'status': 'incomplete'})
-    else:
-        remaining = [f for f in all_fields if not f['signed']]
+    remaining = [f for f in all_fields if not f['signed']]
         if remaining:
             next_step = min(f['step'] for f in remaining)
             send_email(data['session_id'], next_step)
+        else:
+            send_pdf_to_all(session_data)
         else:
             send_pdf_to_all(session_data)
 
