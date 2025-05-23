@@ -127,10 +127,10 @@ def fill_field():
         pdf_input_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'])
+        apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
     else:
-        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
+        apply_text(pdf_path, field['x'], field['y'], data['value'])
 
     # 🔥 AJOUT ESSENTIEL : on enregistre les changements dans session_data
     with open(session_path, 'w') as f:
@@ -160,6 +160,8 @@ def finalise_signature():
             send_email(data['session_id'], next_step)
         else:
             send_pdf_to_all(session_data)
+        else:
+            send_pdf_to_all(session_data)
 
         with open(session_path, 'w') as f:
             json.dump(session_data, f)
@@ -175,9 +177,10 @@ def status(session_id):
     done = all(f['signed'] for f in session_data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
-def apply_text(pdf_path, x, y, text, pdf_width=letter[0], pdf_height=letter[1]):
-    x_pdf = x * (pdf_width / 1000)
-    y_pdf = pdf_height - (y * (pdf_height / 1400))
+def apply_text(pdf_path, x, y, text):
+    # Convertir en coordonnées PDF sans décalage artificiel
+    x_pdf = x / scale
+    y_pdf = (letter[1] - y / scale)
 
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
@@ -200,17 +203,17 @@ def apply_text(pdf_path, x, y, text, pdf_width=letter[0], pdf_height=letter[1]):
 
 
 
-def apply_signature(pdf_path, sig_data, output_path, x, y, pdf_width=letter[0], pdf_height=letter[1]):
+def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     from reportlab.lib.utils import ImageReader
 
     width, height = 100, 40
-    x_pdf = x * (pdf_width / 1000)
-    y_pdf = pdf_height - (y * (pdf_height / 1400)) - height
+    x_pdf = x / scale
+    y_pdf = (letter[1] - y / scale - height)
 
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",")[1]
     image_bytes = base64.b64decode(sig_data)
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")  # Preserve transparency
 
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
@@ -256,8 +259,8 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"{data.get('message', 'Bonjour, veuillez signer ici :')}\n{app_url}/sign/{session_id}/{step}")
-
+    msg.set_content(f"{data.get('message', 'Bonjour, veuillez signer ici :')}
+{app_url}/sign/{session_id}/{step}")
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
