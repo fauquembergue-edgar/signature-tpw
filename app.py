@@ -176,9 +176,10 @@ def status(session_id):
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
 def apply_text(pdf_path, x, y, text, scale=1.5):
+    html_width, html_height = 852, 512
     pdf_width, pdf_height = letter
-    x_pdf = x * (pdf_width / 1000)
-    y_pdf = pdf_height - (y * (pdf_height / 1400))
+    x_pdf = x * (pdf_width / html_width)
+    y_pdf = pdf_height - (y * (pdf_height / html_height))
 
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
@@ -203,9 +204,10 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
 
 def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     width, height = 100, 40
+    html_width, html_height = 852, 512
     pdf_width, pdf_height = letter
-    x_pdf = x * (pdf_width / 1000)
-    y_pdf = pdf_height - (y * (pdf_height / 1400)) - height / 2
+    x_pdf = x * (pdf_width / html_width)
+    y_pdf = pdf_height - (y * (pdf_height / html_height)) - (height / 2)
 
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",")[1]
@@ -256,7 +258,8 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"{data.get('message', 'Bonjour, veuillez signer ici :')}\n{app_url}/sign/{session_id}/{step}")
+    msg.set_content(f"{data.get('message', 'Bonjour, veuillez signer ici :')}
+{app_url}/sign/{session_id}/{step}")
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
