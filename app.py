@@ -219,7 +219,7 @@ def send_email(session_id, step):
     msg.set_content(
         "Bonjour,\n\n"
         f"{email_message}\n\n"
-        f"Pour signer, cliquez ici : {app_url}/sign/{session_id}/{step}" Franco
+        f"Pour signer, cliquez ici : {app_url}/sign/{session_id}/{step}" Franco )
 
 
 def send_pdf_to_all(session_data):
