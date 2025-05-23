@@ -15,6 +15,9 @@ from reportlab.lib.utils import ImageReader
 
 
 load_dotenv()
+from PyPDF2 import PdfReader, PdfWriter
+import io
+from PIL import Image
 
 # Configuration du logger
 import logging
@@ -213,39 +216,51 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
 
 
 
+
 def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
+    """
+    Applique la signature sur le PDF en utilisant les dimensions reelles de la page
+    et en conservant la transparence de l image PNG.
+    x, y sont exprimes en points dans le repere du PDF.
+    """
     from reportlab.lib.utils import ImageReader
 
-    width, height = 100, 40  # Taille finale de la signature
-    x_pdf = x / scale
-    y_pdf = (letter[1] - y / scale - height)
+    # lecture du PDF pour connaitre sa taille
+    reader = PdfReader(pdf_path)
+    page = reader.pages[0]
+    media = page.mediabox
+    page_w = float(media.width)
+    page_h = float(media.height)
 
+    # decode de l image de signature
     if sig_data.startswith("data:image/png;base64,"):
-        sig_data = sig_data.split(",")[1]
+        sig_data = sig_data.split(",",1)[1]
     image_bytes = base64.b64decode(sig_data)
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    # chargement avec canal alpha
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
 
+    # creation du canevas avec la taille de la page
     packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=letter)
-    img_io = io.BytesIO()
-    image.save(img_io, format="PNG")
-    img_io.seek(0)
-
-    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
+    can = pdfcanvas.Canvas(packet, pagesize=(page_w, page_h))
+    # dessin de l image en respectant transparence
+    dpi_x, dpi_y = image.info.get("dpi", (72,72))
+    w_pt = image.width * 72.0 / dpi_x
+    h_pt = image.height * 72.0 / dpi_y
+    can.drawImage(ImageReader(io.BytesIO(image_bytes)), x, y, width=w_pt, height=h_pt, mask='auto')
     can.save()
 
     packet.seek(0)
     overlay = PdfReader(packet)
-    reader = PdfReader(pdf_path)
     writer = PdfWriter()
 
-    for i, page in enumerate(reader.pages):
-        if i == 0:
-            page.merge_page(overlay.pages[0])
+    # fusion de l overlay sur chaque page
+    for page in reader.pages:
+        page.merge_page(overlay.pages[0])
         writer.add_page(page)
 
-    with open(output_path, 'wb') as f:
-        writer.write(f)
+    # ecriture du PDF final
+    with open(output_path, 'wb') as f_out:
+        writer.write(f_out)
 
 
 
@@ -277,6 +292,7 @@ def send_email(session_id, step):
             server.send_message(msg)
     except Exception as e:
         logger.error(f"Erreur SMTP pour {recipient} : {e}")
+            log.write(f"[ERROR] email vers {recipient} : {e}\n")
 
 def send_pdf_to_all(session_data):
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
@@ -305,6 +321,7 @@ def send_pdf_to_all(session_data):
                     server.send_message(msg)
             except Exception as e:
                 logger.error(f"Erreur SMTP pour {recipient} : {e}")
+                    log.write(f"[ERROR] PDF à {recipient} : {e}\n")
 
 
 if __name__ == '__main__':
