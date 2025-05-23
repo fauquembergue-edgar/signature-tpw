@@ -1,0 +1,5 @@
+Flask
+python-dotenv
+reportlab
+PyPDF2
+Pillow
