@@ -178,52 +178,54 @@ def status(session_id):
 def apply_text(pdf_path, x, y, text, scale=1.5):
     x /= scale
     y /= scale
-    x_pdf = x + 5
-    y_pdf = letter[1] - y - 10
+    x_pdf = x  # Pas de +5 ici
+    y_pdf = letter[1] - y - 5  # Réduction du décalage vertical
+
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
+
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
     can.setFont("Helvetica", 12)
     can.drawString(x_pdf, y_pdf, text)
     can.save()
+
     packet.seek(0)
     overlay = PdfReader(packet)
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
         writer.add_page(page)
+
     with open(pdf_path, 'wb') as f:
         writer.write(f)
+
 
 def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     from reportlab.lib.utils import ImageReader
 
-    # Conversion des coordonnées
     x /= scale
     y /= scale
-    x_pdf = x + 5
-    y_pdf = letter[1] - y - 50  # Ajustement vertical pour coller à la zone
+    x_pdf = x
+    y_pdf = letter[1] - y - 50  # Ajustement pour ne plus être trop haut
 
-    # Décoder l'image base64
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",")[1]
     image_bytes = base64.b64decode(sig_data)
+
+    # Force conversion en mode RGB (sans transparence) pour éviter le rectangle noir
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
-    # Créer l'image temporaire compatible PDF
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=letter)
+
     img_io = io.BytesIO()
     image.save(img_io, format="PNG")
     img_io.seek(0)
-    img = ImageReader(img_io)
 
-    # Création de l'overlay PDF
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=letter)
-    can.drawImage(img, x_pdf, y_pdf, width=100, height=50, mask='auto')
+    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=100, height=50, mask='auto')
     can.save()
 
-    # Fusion avec le PDF original
     packet.seek(0)
     overlay = PdfReader(packet)
     reader = PdfReader(pdf_path)
@@ -236,6 +238,7 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
 
     with open(output_path, 'wb') as f:
         writer.write(f)
+
 
 
 def save_signature_image(data_url, session_id, index):
