@@ -1,9 +1,0 @@
-Flask
-Flask-SQLAlchemy
-python-dotenv
-pydantic<2
-reportlab
-PyPDF2
-Pillow
-gunicorn
-email-validator
