@@ -160,8 +160,6 @@ def finalise_signature():
             send_email(data['session_id'], next_step)
         else:
             send_pdf_to_all(session_data)
-        else:
-            send_pdf_to_all(session_data)
 
         with open(session_path, 'w') as f:
             json.dump(session_data, f)
