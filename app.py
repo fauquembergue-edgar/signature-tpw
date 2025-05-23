@@ -258,8 +258,7 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"{data.get('message', 'Bonjour, veuillez signer ici :')}
-{app_url}/sign/{session_id}/{step}")
+    msg.set_content(f"{data.get('message', 'Bonjour, veuillez signer ici :')}\n{app_url}/sign/{session_id}/{step}")
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
