@@ -1,10 +1,8 @@
 Flask
 Flask-SQLAlchemy
 python-dotenv
-pydantic<2
-pydantic-settings
+pydantic
 reportlab
 PyPDF2
 Pillow
-wheel
 gunicorn
