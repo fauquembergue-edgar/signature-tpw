@@ -10,8 +10,9 @@ from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.lib.pagesizes import letter
 from dotenv import load_dotenv
 import io
-from PIL import Image
+from PIL import Image, ImageDraw
 from reportlab.lib.utils import ImageReader
+
 
 load_dotenv()
 
@@ -20,25 +21,24 @@ UPLOAD_FOLDER = 'uploads'
 SESSION_FOLDER = 'sessions'
 TEMPLATES_FOLDER = 'templates_data'
 LOG_FOLDER = 'logs'
-
-for folder in [UPLOAD_FOLDER, SESSION_FOLDER, LOG_FOLDER]:
-    if not os.path.exists(folder):
-        os.makedirs(folder)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(SESSION_FOLDER, exist_ok=True)
+os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
+os.makedirs(LOG_FOLDER, exist_ok=True)
 
 @app.route('/')
 def index():
     sessions = {}
-    for fname in os.listdir(SESSION_FOLDER):
-        if fname.endswith('.json'):
-            sid = fname.replace('.json', '')
-            with open(os.path.join(SESSION_FOLDER, fname)) as f:
+    for filename in os.listdir(SESSION_FOLDER):
+        if filename.endswith(".json"):
+            sid = filename.replace(".json", "")
+            with open(os.path.join(SESSION_FOLDER, filename)) as f:
                 data = json.load(f)
                 sessions[sid] = {
                     "pdf": data["pdf"],
                     "name": data.get("nom_demande", ""),
                     "fields": data["fields"],
-                    "done": all(f.get("signed") for f in data["fields"]),
-                    "email_message": data.get("email_message", "")
+                    "done": all(f.get("signed") for f in data["fields"])
                 }
     templates = [f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')]
     return render_template("index.html", templates=templates, sessions=sessions)
@@ -58,6 +58,7 @@ def uploaded_file(filename):
 @app.route('/save-template', methods=['POST'])
 def save_template():
     data = request.get_json()
+    scale = data.get('scale', 1.5)
     name = data.get('name')
     if not name:
         return jsonify({'error': 'Nom de template requis'}), 400
@@ -65,38 +66,52 @@ def save_template():
         json.dump({'pdf': data['pdf'], 'fields': data['fields']}, f)
     return jsonify({'status': 'saved'})
 
+@app.route('/load-template/<name>')
+def load_template(name):
+    path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
+    if not os.path.exists(path):
+        return jsonify({'error': 'Template introuvable'}), 404
+    with open(path) as f:
+        return jsonify(json.load(f))
+
 @app.route('/define-fields', methods=['POST'])
 def define_fields():
-    data = request.get_json()
-    sid = data['session_id']
-    with open(os.path.join(TEMPLATES_FOLDER, f"{data['template']}.json")) as f:
-        tmpl = json.load(f)
-    sessions_data = {
-        'pdf': tmpl['pdf'],
-        'fields': tmpl['fields'],
-        'nom_demande': data.get('nom_demande', ''),
-        'email_message': data.get('message', ''),
-        'done': False
+    data = json.loads(request.form['fields_json'])
+    message = request.form.get('email_message', '')
+    nom_demande = request.form.get('nom_demande', '')
+    session_id = str(uuid.uuid4())
+    pdf_file = data['pdf']
+    fields = data['fields']
+    for i, field in enumerate(fields):
+        field['signed'] = False
+        field['value'] = ''
+        field['step'] = i
+    session_data = {
+        'pdf': pdf_file,
+        'fields': fields,
+        'email_message': message,
+        'nom_demande': nom_demande
     }
-    with open(os.path.join(SESSION_FOLDER, f"{sid}.json"), 'w') as f:
-        json.dump(sessions_data, f)
-    send_email(sid, 1)
-    return jsonify({'status': 'started'})
+    with open(os.path.join(SESSION_FOLDER, f'{session_id}.json'), 'w') as f:
+        json.dump(session_data, f)
+    send_email(session_id, step=0)
+    return render_template("notified.html", session_id=session_id)
 
 @app.route('/sign/<session_id>/<int:step>')
-def sign_page(session_id, step):
-    with open(os.path.join(SESSION_FOLDER, f"{session_id}.json")) as f:
+def sign(session_id, step):
+    path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
+    with open(path) as f:
         session_data = json.load(f)
-    fields = [f for f in session_data['fields'] if f['step'] == step]
-    if not fields:
-        return "Aucune signature à ce pas", 404
+    fields = [f for f in session_data['fields'] if f.get('step', 0) == step]
     return render_template('sign.html',
+                           fields_json=fields,
                            pdf=session_data['pdf'],
                            session_id=session_id,
                            step=step,
-                           fields=fields,
-                           email=fields[0]['email'])
+                           email=fields[0]['email'],
+                           fields_all=session_data['fields'])
 
+@app.route('/fill-field', methods=['POST'])
 @app.route('/fill-field', methods=['POST'])
 def fill_field():
     data = request.get_json()
@@ -108,35 +123,52 @@ def fill_field():
     field = session_data['fields'][data['field_index']]
     field['value'] = data['value']
     field['signed'] = True
-
-    pdf_input_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-    new_pdf_path = pdf_input_path
+    pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
 
     if field['type'] == 'signature':
-        apply_signature(pdf_input_path,
-                        field['value'],
-                        new_pdf_path,
-                        field['x'],
-                        field['y'],
-                        scale=scale)
+        pdf_input_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+        new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
+        new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
+        apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=scale)
+        session_data['pdf'] = new_pdf_name
     else:
-        apply_text(pdf_input_path,
-                   field['x'],
-                   field['y'],
-                   data['value'],
-                   scale)
+        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=scale)
 
+    # 🔥 AJOUT ESSENTIEL : on enregistre les changements dans session_data
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
 
-    remaining = [f for f in session_data['fields'] if not f.get('signed')]
-    if remaining:
-        next_step = min(f['step'] for f in remaining)
-        send_email(data['session_id'], next_step)
-        return jsonify({'status': 'next'})
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/finalise-signature', methods=['POST'])
+def finalise_signature():
+    data = request.get_json()
+    scale = data.get('scale', 1.5)
+    session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
+    with open(session_path) as f:
+        session_data = json.load(f)
+
+    all_fields = session_data['fields']
+    current_step = max(f['step'] for f in all_fields if f['signed']) if any(f['signed'] for f in all_fields) else 0
+    remaining_fields_same_step = [f for f in all_fields if f['step'] == current_step and not f['signed']]
+
+    if remaining_fields_same_step:
+        # Ne pas envoyer l'email suivant car le signataire courant n’a pas fini
+        return jsonify({'status': 'incomplete'})
     else:
-        send_pdf_to_all(session_data)
-        return jsonify({'status': 'completed'})
+        remaining = [f for f in all_fields if not f['signed']]
+        if remaining:
+            next_step = min(f['step'] for f in remaining)
+            send_email(data['session_id'], next_step)
+        else:
+            send_pdf_to_all(session_data)
+
+        with open(session_path, 'w') as f:
+            json.dump(session_data, f)
+
+        return jsonify({'status': 'finalised'})
+
 
 @app.route('/session/<session_id>/status')
 def status(session_id):
@@ -144,71 +176,79 @@ def status(session_id):
     with open(path) as f:
         session_data = json.load(f)
     done = all(f['signed'] for f in session_data['fields'])
-    return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}" 
+    return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
+def apply_text(pdf_path, x, y, text, scale=scale):
+    # Convertir en coordonnées PDF sans décalage artificiel
+    x_pdf = x / scale
+    y_pdf = (letter[1] - y / scale)
 
-def apply_text(pdf_path, x, y, text, scale=1.5):
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
-    x_pdf = x / scale
-    y_pdf = letter[1] - y / scale
     can.setFont("Helvetica", 12)
     can.drawString(x_pdf, y_pdf, text)
     can.save()
+
     packet.seek(0)
     overlay = PdfReader(packet)
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
+
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
         writer.add_page(page)
+
     with open(pdf_path, 'wb') as f:
         writer.write(f)
 
 
-def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
-    # Décodage de l'image
-    if sig_data.startswith("data:image/png;base64,"):
-        sig_data = sig_data.split(",")[1]
+
+def apply_signature(pdf_path, sig_data, output_path, x, y, scale=scale):
+    from reportlab.lib.utils import ImageReader
+
     image_bytes = base64.b64decode(sig_data)
     image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
-    width, height = image.size
-
-    x_pdf = x / scale
-    y_pdf = letter[1] - y / scale - (height / scale)
+    width, height = image.size(io.BytesIO(image_bytes)).convert("RGB")
 
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
     img_io = io.BytesIO()
     image.save(img_io, format="PNG")
     img_io.seek(0)
-    can.drawImage(ImageReader(img_io),
-                  x_pdf,
-                  y_pdf,
-                  width=width/scale,
-                  height=height/scale,
-                  mask='auto')
-    can.save()
-    packet.seek(0)
 
+    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
+    can.save()
+
+    packet.seek(0)
     overlay = PdfReader(packet)
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
+
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
         writer.add_page(page)
+
     with open(output_path, 'wb') as f:
         writer.write(f)
 
 
+
+def save_signature_image(data_url, session_id, index):
+    if data_url.startswith("data:image/png;base64,"):
+        data_url = data_url.replace("data:image/png;base64,", "")
+    sig_data = base64.b64decode(data_url)
+    sig_path = os.path.join(UPLOAD_FOLDER, f"{session_id}_sig_{index}.png")
+    with open(sig_path, 'wb') as f:
+        f.write(sig_data)
+    return sig_path
+
 def send_email(session_id, step):
-    session_file = os.path.join(SESSION_FOLDER, f"{session_id}.json")
-    with open(session_file) as f:
+    with open(os.path.join(SESSION_FOLDER, f"{session_id}.json")) as f:
         data = json.load(f)
-        email_message = data.get('email_message', '').strip()
-    recipient = next((fd['email'] for fd in data['fields'] if fd['step'] == step), None)
+    email_message = data.get('email_message', '').strip()
+    recipient = next((f['email'] for f in data['fields'] if f.get('step', 0) == step), None)
     if not recipient:
         return
     app_url = os.getenv('APP_URL', 'http://localhost:5000')
@@ -216,11 +256,15 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(
-        "Bonjour,\n\n"
-        f"{email_message}\n\n"
-        f"Pour signer, cliquez ici : {app_url}/sign/{session_id}/{step}" Franco )
-
+    msg.set_content(f"Bonjour, veuillez signer ici : {app_url}/sign/{session_id}/{step}")
+    try:
+        with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
+            server.starttls()
+            server.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASS'))
+            server.send_message(msg)
+    except Exception as e:
+        with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
+            log.write(f"[ERROR] email vers {recipient} : {e}\n")
 
 def send_pdf_to_all(session_data):
     email_message = session_data.get('email_message', '').strip()
@@ -242,8 +286,12 @@ def send_pdf_to_all(session_data):
             msg['From'] = os.getenv('SMTP_USER')
             msg['To'] = recipient
             msg.set_content(
-            "Bonjour,\n\n"
-            f"{email_message}\n\n"
+            "Bonjour,
+
+"
+            f"{email_message}
+
+"
             "Le document final signé est en pièce jointe."
         )
             msg.add_attachment(content, maintype='application', subtype='pdf', filename='document_final.pdf')
