@@ -130,7 +130,7 @@ def fill_field():
         apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
     else:
-        apply_text(pdf_path, field['x'], field['y'], data['value'])
+        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
 
     # 🔥 AJOUT ESSENTIEL : on enregistre les changements dans session_data
     with open(session_path, 'w') as f:
@@ -153,12 +153,11 @@ def finalise_signature():
     if remaining_fields_same_step:
         # Ne pas envoyer l'email suivant car le signataire courant n’a pas fini
         return jsonify({'status': 'incomplete'})
-    remaining = [f for f in all_fields if not f['signed']]
+    else:
+        remaining = [f for f in all_fields if not f['signed']]
         if remaining:
             next_step = min(f['step'] for f in remaining)
             send_email(data['session_id'], next_step)
-        else:
-            send_pdf_to_all(session_data)
         else:
             send_pdf_to_all(session_data)
 
@@ -176,7 +175,7 @@ def status(session_id):
     done = all(f['signed'] for f in session_data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
-def apply_text(pdf_path, x, y, text):
+def apply_text(pdf_path, x, y, text, scale=1.5):
     # Convertir en coordonnées PDF sans décalage artificiel
     x_pdf = x / scale
     y_pdf = (letter[1] - y / scale)
