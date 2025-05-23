@@ -197,27 +197,33 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
         writer.write(f)
 
 def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
+    from reportlab.lib.utils import ImageReader
+
+    # Conversion des coordonnées
     x /= scale
     y /= scale
+    x_pdf = x + 5
+    y_pdf = letter[1] - y - 50  # Ajustement vertical pour coller à la zone
 
     # Décoder l'image base64
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",")[1]
     image_bytes = base64.b64decode(sig_data)
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
-    # Créer un PDF overlay avec la signature
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=letter)
-
+    # Créer l'image temporaire compatible PDF
     img_io = io.BytesIO()
     image.save(img_io, format="PNG")
     img_io.seek(0)
+    img = ImageReader(img_io)
 
-    can.drawImage(ImageReader(img_io), x, y, width=100, height=50, mask='auto')
+    # Création de l'overlay PDF
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=letter)
+    can.drawImage(img, x_pdf, y_pdf, width=100, height=50, mask='auto')
     can.save()
 
-    # Fusionner le PDF
+    # Fusion avec le PDF original
     packet.seek(0)
     overlay = PdfReader(packet)
     reader = PdfReader(pdf_path)
