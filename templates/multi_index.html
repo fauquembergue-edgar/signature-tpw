@@ -1,0 +1,35 @@
+
+<!doctype html>
+<html>
+<head>
+  <title>Multi-signature PDF</title>
+</head>
+<body>
+  <h1>Démarrer un processus de signature</h1>
+  <form action="/start-signature" method="post" enctype="multipart/form-data">
+    <p>PDF à signer : <input type="file" name="pdf" required></p>
+
+    <h3>Signataire 1</h3>
+    <p>Email : <input type="email" name="email1" required></p>
+    <p>X : <input type="number" name="x1" required> Y : <input type="number" name="y1" required></p>
+
+    <h3>Signataire 2</h3>
+    <p>Email : <input type="email" name="email2"></p>
+    <p>X : <input type="number" name="x2"> Y : <input type="number" name="y2"></p>
+
+    <h3>Signataire 3</h3>
+    <p>Email : <input type="email" name="email3"></p>
+    <p>X : <input type="number" name="x3"> Y : <input type="number" name="y3"></p>
+
+    <h3>Signataire 4</h3>
+    <p>Email : <input type="email" name="email4"></p>
+    <p>X : <input type="number" name="x4"> Y : <input type="number" name="y4"></p>
+
+    <h3>Signataire 5</h3>
+    <p>Email : <input type="email" name="email5"></p>
+    <p>X : <input type="number" name="x5"> Y : <input type="number" name="y5"></p>
+
+    <input type="submit" value="Lancer le processus de signature">
+  </form>
+</body>
+</html>

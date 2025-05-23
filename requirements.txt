@@ -1,4 +1,7 @@
 Flask
-PyPDF2
-reportlab
+Flask-SQLAlchemy
 python-dotenv
+pydantic
+reportlab
+PyPDF2
+Pillow

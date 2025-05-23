@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Signature</title>
+</head>
+<body>
+    <h1>Signer le document {{ session.name }}</h1>
+    <form method="post" action="{{ url_for('sign.submit_sign', session_id=session.id) }}">
+        Email: <input type="email" name="email" required><br>
+        <!-- champ pour signature a implementer -->
+        <button type="submit">Signer</button>
+    </form>
+</body>
+</html>
