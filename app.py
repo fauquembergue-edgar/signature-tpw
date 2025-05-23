@@ -257,8 +257,13 @@ def send_email(session_id, step):
 
 def send_pdf_to_all(session_data):
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+
+    if not os.path.isfile(pdf_path):
+        return
+
     with open(pdf_path, 'rb') as f:
         content = f.read()
+
     sent = set()
     for f in session_data['fields']:
         recipient = f['email']
@@ -269,7 +274,7 @@ def send_pdf_to_all(session_data):
             msg['From'] = os.getenv('SMTP_USER')
             msg['To'] = recipient
             msg.set_content('Voici le PDF final signé.')
-            msg.add_attachment(content, maintype='application', subtype='pdf', filename=session_data['pdf'])
+            msg.add_attachment(content, maintype='application', subtype='pdf', filename='document_final.pdf')
             try:
                 with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
                     server.starttls()
@@ -278,6 +283,7 @@ def send_pdf_to_all(session_data):
             except Exception as e:
                 with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
                     log.write(f"[ERROR] PDF à {recipient} : {e}\n")
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
