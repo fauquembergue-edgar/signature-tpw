@@ -129,11 +129,12 @@ def fill_field():
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
         apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
-    else:
-        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
     elif field['type'] == 'checkbox':
         if data['value'] == "true":
             apply_checkbox(pdf_path, field['x'], field['y'], True, scale=1.5)
+    else:
+        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
+
 
 
     # 🔥 AJOUT ESSENTIEL : on enregistre les changements dans session_data
