@@ -10,7 +10,7 @@ from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.lib.pagesizes import letter
 from dotenv import load_dotenv
 import io
-from PIL import Image, ImageDraw
+from PIL import Image
 from reportlab.lib.utils import ImageReader
 
 # Chargement des variables d'environnement
@@ -23,8 +23,8 @@ TEMPLATES_FOLDER = 'templates_data'
 LOG_FOLDER = 'logs'
 
 # Offsets pour ajuster la position des cases à cocher (en pixels sur l’UI HTML)
-CHECKBOX_OFFSET_X = 20   # déplace vers la droite
-CHECKBOX_OFFSET_Y = 5   # déplace vers le haut
+CHECKBOX_OFFSET_X = 5   # déplace vers la droite
+CHECKBOX_OFFSET_Y = 5   # déplace vers le bas
 
 # Création des dossiers si nécessaire
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -137,14 +137,12 @@ def fill_field():
         apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        mark = '☑' if data['value'] else '☐'
         x = field['x'] + CHECKBOX_OFFSET_X
         y = field['y'] + CHECKBOX_OFFSET_Y
-        apply_text(pdf_path, x, y, mark, scale=1.5)
+        apply_checkbox(pdf_path, x, y, data['value'], size=12, scale=1.5)
     else:
         apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
 
-    # Enregistre les changements dans le JSON de session
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
 
@@ -158,10 +156,7 @@ def finalise_signature():
     with open(session_path) as f:
         session_data = json.load(f)
 
-    # Chemin du PDF courant
-    pdf_filename = session_data['pdf']
-    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_filename)
-
+    pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
     all_fields = session_data['fields']
     current_step = max(f['step'] for f in all_fields if f['signed']) \
                    if any(f['signed'] for f in all_fields) else 0
@@ -173,15 +168,6 @@ def finalise_signature():
     if remaining_fields_same_step:
         return jsonify({'status': 'incomplete'})
 
-    # Traiter toutes les cases à cocher avec offsets
-    for f in all_fields:
-        if f['type'] == 'checkbox':
-            mark = '☑' if f.get('value', False) else '☐'
-            x = f['x'] + CHECKBOX_OFFSET_X
-            y = f['y'] - CHECKBOX_OFFSET_Y
-            apply_text(pdf_path, x, y, mark, scale=1.5)
-
-    # Envoi de l'étape suivante ou envoi du PDF final
     remaining = [f for f in all_fields if not f['signed']]
     if remaining:
         next_step = min(f['step'] for f in remaining)
@@ -189,7 +175,6 @@ def finalise_signature():
     else:
         send_pdf_to_all(session_data)
 
-    # Sauvegarde finale
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
 
@@ -203,10 +188,9 @@ def status(session_id):
     done = all(f['signed'] for f in session_data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
-
 def apply_text(pdf_path, x, y, text, scale=1.5):
     html_width, html_height = 852, 512
-    offset_x, offset_y = 40, 60
+    offset_x, offset_y = 40, 55
     pdf_width, pdf_height = letter
     x_pdf = (x + offset_x) * (pdf_width / html_width)
     y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height))
@@ -221,12 +205,10 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
 
     packet.seek(0)
     overlay = PdfReader(packet)
-
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
         writer.add_page(page)
-
     with open(pdf_path, 'wb') as f:
         writer.write(f)
 
@@ -249,7 +231,6 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     img_io = io.BytesIO()
     image.save(img_io, format="PNG")
     img_io.seek(0)
-
     can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
     can.save()
 
@@ -257,75 +238,42 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     overlay = PdfReader(packet)
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
-
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
         writer.add_page(page)
-
     with open(output_path, 'wb') as f:
         writer.write(f)
 
-def save_signature_image(data_url, session_id, index):
-    if data_url.startswith("data:image/png;base64,"):
-        data_url = data_url.replace("data:image/png;base64,", "")
-    sig_data = base64.b64decode(data_url)
-    sig_path = os.path.join(UPLOAD_FOLDER, f"{session_id}_sig_{index}.png")
-    with open(sig_path, 'wb') as f:
-        f.write(sig_data)
-    return sig_path
+def apply_checkbox(pdf_path, x, y, checked, size=12, scale=1.5):
+    # Conversion des coordonnées HTML vers PDF
+    html_width, html_height = 852, 512
+    offset_x, offset_y = 10, 10
+    pdf_width, pdf_height = letter
+    x_pdf = (x + offset_x) * (pdf_width  / html_width)
+    y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height)) - size/2
 
-def send_email(session_id, step):
-    with open(os.path.join(SESSION_FOLDER, f"{session_id}.json")) as f:
-        data = json.load(f)
-    recipient = next((f['email'] for f in data['fields'] if f.get('step', 0) == step), None)
-    if not recipient:
-        return
-    app_url = os.getenv('APP_URL', 'http://localhost:5000')
-    msg = EmailMessage()
-    msg['Subject'] = 'Signature requise'
-    msg['From'] = os.getenv('SMTP_USER')
-    msg['To'] = recipient
-    msg.set_content(f"{data.get('email_message', 'Bonjour, veuillez signer ici :')}\n{app_url}/sign/{session_id}/{step}")
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=letter)
+    # Dessine la case
+    can.rect(x_pdf, y_pdf, size, size, stroke=1, fill=0)
+    if checked:
+        can.setLineWidth(1.5)
+        can.line(x_pdf, y_pdf, x_pdf+size, y_pdf+size)
+        can.line(x_pdf, y_pdf+size, x_pdf+size, y_pdf)
+    can.save()
 
-    try:
-        with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
-            server.starttls()
-            server.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASS'))
-            server.send_message(msg)
-    except Exception as e:
-        with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] email vers {recipient} : {e}\n")
+    packet.seek(0)
+    overlay = PdfReader(packet)
+    for i, page in enumerate(reader.pages):
+        if i == 0:
+            page.merge_page(overlay.pages[0])
+        writer.add_page(page)
+    with open(pdf_path, 'wb') as f:
+        writer.write(f)
 
-def send_pdf_to_all(session_data):
-    pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-
-    if not os.path.isfile(pdf_path):
-        return
-
-    with open(pdf_path, 'rb') as f:
-        content = f.read()
-
-    sent = set()
-    for f in session_data['fields']:
-        recipient = f['email']
-        if recipient and recipient not in sent:
-            sent.add(recipient)
-            msg = EmailMessage()
-            msg['Subject'] = 'Document signé final'
-            msg['From'] = os.getenv('SMTP_USER')
-            msg['To'] = recipient
-            msg.set_content('Voici le PDF final signé.')
-            msg.add_attachment(content, maintype='application', subtype='pdf', filename='document_final.pdf')
-            try:
-                with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
-                    server.starttls()
-                    server.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASS'))
-                    server.send_message(msg)
-            except Exception as e:
-                with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                    log.write(f"[ERROR] PDF à {recipient} : {e}\n")
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+ def save_signature_image(data_url, session_id, index):
+     if data_url.startswith("data:image/png;base64,"):
+         data_url = data_url.replace("data:image/png;base64,", "")
