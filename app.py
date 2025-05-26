@@ -129,6 +129,9 @@ def fill_field():
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
         apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
+    
+    elif field['type'] == 'checkbox':
+        apply_checkbox(pdf_path, field['x'], field['y'])
     else:
         apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
 
@@ -300,3 +303,36 @@ def send_pdf_to_all(session_data):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
+
+
+def apply_checkbox(pdf_path, x, y):
+    html_width, html_height = 852, 512
+    offset_x, offset_y = 15, 35
+    pdf_width, pdf_height = letter
+    x_pdf = (x + offset_x) * (pdf_width / html_width)
+    y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height))
+
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=letter)
+    can.setLineWidth(2)
+
+    # Dessiner une croix en X centrée autour du point
+    size = 10
+    can.line(x_pdf - size/2, y_pdf - size/2, x_pdf + size/2, y_pdf + size/2)
+    can.line(x_pdf - size/2, y_pdf + size/2, x_pdf + size/2, y_pdf - size/2)
+
+    can.save()
+
+    packet.seek(0)
+    overlay = PdfReader(packet)
+
+    for i, page in enumerate(reader.pages):
+        if i == 0:
+            page.merge_page(overlay.pages[0])
+        writer.add_page(page)
+
+    with open(pdf_path, 'wb') as f:
+        writer.write(f)
