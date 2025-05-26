@@ -23,8 +23,8 @@ TEMPLATES_FOLDER = 'templates_data'
 LOG_FOLDER = 'logs'
 
 # Offsets pour ajuster la position des cases à cocher (en pixels sur l’UI HTML)
-CHECKBOX_OFFSET_X = 5   # déplace vers la droite
-CHECKBOX_OFFSET_Y = 5   # déplace vers le bas
+CHECKBOX_OFFSET_X = 20   # déplace vers la droite
+CHECKBOX_OFFSET_Y = 5   # déplace vers le haut
 
 # Création des dossiers si nécessaire
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -178,7 +178,7 @@ def finalise_signature():
         if f['type'] == 'checkbox':
             mark = '☑' if f.get('value', False) else '☐'
             x = f['x'] + CHECKBOX_OFFSET_X
-            y = f['y'] + CHECKBOX_OFFSET_Y
+            y = f['y'] - CHECKBOX_OFFSET_Y
             apply_text(pdf_path, x, y, mark, scale=1.5)
 
     # Envoi de l'étape suivante ou envoi du PDF final
@@ -206,7 +206,7 @@ def status(session_id):
 
 def apply_text(pdf_path, x, y, text, scale=1.5):
     html_width, html_height = 852, 512
-    offset_x, offset_y = 40, 55
+    offset_x, offset_y = 40, 60
     pdf_width, pdf_height = letter
     x_pdf = (x + offset_x) * (pdf_width / html_width)
     y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height))
