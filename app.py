@@ -177,9 +177,10 @@ def status(session_id):
 
 def apply_text(pdf_path, x, y, text, scale=1.5):
     html_width, html_height = 852, 512
+    offset_y = 100
     pdf_width, pdf_height = letter
     x_pdf = x * (pdf_width / html_width)
-    y_pdf = pdf_height - (y * (pdf_height / html_height))
+    y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height))
 
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
@@ -201,13 +202,13 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
         writer.write(f)
 
 
-
 def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     width, height = 100, 40
     html_width, html_height = 852, 512
+    offset_y = 100
     pdf_width, pdf_height = letter
     x_pdf = x * (pdf_width / html_width)
-    y_pdf = pdf_height - (y * (pdf_height / html_height)) - (height / 2)
+    y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height)) - (height / 2)
 
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",")[1]
@@ -235,8 +236,6 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
 
     with open(output_path, 'wb') as f:
         writer.write(f)
-
-
 
 def save_signature_image(data_url, session_id, index):
     if data_url.startswith("data:image/png;base64,"):
