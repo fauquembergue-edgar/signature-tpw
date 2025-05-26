@@ -156,24 +156,27 @@ def finalise_signature():
     if remaining_fields_same_step:
         # Ne pas envoyer l'email suivant car le signataire courant n’a pas fini
         return jsonify({'status': 'incomplete'})
-    elif field['type'] == 'checkbox':
-        mark = data['value'] and '☑' or '☐'
-        apply_text(pdf_path, field['x'], field['y'], mark, scale=1.5)
+
+    # === Remplacement à partir de la ligne 14 ===
+    # Marquage de toutes les cases à cocher dans le PDF
+    for f in all_fields:
+        if f['type'] == 'checkbox':
+            mark = '☑' if f.get('value', False) else '☐'
+            apply_text(pdf_path, f['x'], f['y'], mark, scale=1.5)
+
+    # Ensuite, on gère l’envoi de l’étape suivante ou du PDF final
+    remaining = [f for f in all_fields if not f['signed']]
+    if remaining:
+        next_step = min(f['step'] for f in remaining)
+        send_email(data['session_id'], next_step)
     else:
-        remaining = [f for f in all_fields if not f['signed']]
-        if remaining:
-            next_step = min(f['step'] for f in remaining)
-            send_email(data['session_id'], next_step)
-        elif field['type'] == 'checkbox':
-            mark = data['value'] and '☑' or '☐'
-            apply_text(pdf_path, field['x'], field['y'], mark, scale=1.5)
-        else:
-            send_pdf_to_all(session_data)
+        send_pdf_to_all(session_data)
 
-        with open(session_path, 'w') as f:
-            json.dump(session_data, f)
+    # Sauvegarde des mises à jour de session
+    with open(session_path, 'w') as f:
+        json.dump(session_data, f)
 
-        return jsonify({'status': 'finalised'})
+    return jsonify({'status': 'finalised'})
 
 
 @app.route('/session/<session_id>/status')
