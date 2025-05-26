@@ -246,33 +246,33 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
         writer.write(f)
 
 def apply_checkbox(pdf_path, x, y, checked, size=12, scale=1.5):
-+    # Conversion des coordonnées HTML vers PDF
-+    html_width, html_height = 852, 512
-+    offset_x, offset_y = 40, 55
-+    pdf_width, pdf_height = letter
-+    x_pdf = (x + offset_x) * (pdf_width  / html_width)
-+    y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height)) - size/2
-+
-+    reader = PdfReader(pdf_path)
-+    writer = PdfWriter()
-+    packet = io.BytesIO()
-+    can = pdfcanvas.Canvas(packet, pagesize=letter)
-+    # Dessine la case
-+    can.rect(x_pdf, y_pdf, size, size, stroke=1, fill=0)
-+    if checked:
-+        can.setLineWidth(1.5)
-+        can.line(x_pdf, y_pdf, x_pdf+size, y_pdf+size)
-+        can.line(x_pdf, y_pdf+size, x_pdf+size, y_pdf)
-+    can.save()
-+
-+    packet.seek(0)
-+    overlay = PdfReader(packet)
-+    for i, page in enumerate(reader.pages):
-+        if i == 0:
-+            page.merge_page(overlay.pages[0])
-+        writer.add_page(page)
-+    with open(pdf_path, 'wb') as f:
-+        writer.write(f)
+    # Conversion des coordonnées HTML vers PDF
+    html_width, html_height = 852, 512
+    offset_x, offset_y = 40, 55
+    pdf_width, pdf_height = letter
+    x_pdf = (x + offset_x) * (pdf_width  / html_width)
+    y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height)) - size/2
+
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=letter)
+    # Dessine la case
+    can.rect(x_pdf, y_pdf, size, size, stroke=1, fill=0)
+    if checked:
+        can.setLineWidth(1.5)
+        can.line(x_pdf, y_pdf, x_pdf+size, y_pdf+size)
+        can.line(x_pdf, y_pdf+size, x_pdf+size, y_pdf)
+    can.save()
+
+    packet.seek(0)
+    overlay = PdfReader(packet)
+    for i, page in enumerate(reader.pages):
+        if i == 0:
+            page.merge_page(overlay.pages[0])
+        writer.add_page(page)
+    with open(pdf_path, 'wb') as f:
+        writer.write(f)
 
  def save_signature_image(data_url, session_id, index):
      if data_url.startswith("data:image/png;base64,"):
