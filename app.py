@@ -145,34 +145,41 @@ def fill_field():
 @app.route('/finalise-signature', methods=['POST'])
 def finalise_signature():
     data = request.get_json()
-    session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
+    session_id = data['session_id']
+    session_path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(session_path) as f:
         session_data = json.load(f)
 
+    # --- Définition du chemin du PDF associé à cette session ---
+    pdf_path = os.path.join(SESSION_FOLDER, f"{session_id}.pdf")
+
     all_fields = session_data['fields']
-    current_step = max(f['step'] for f in all_fields if f['signed']) if any(f['signed'] for f in all_fields) else 0
-    remaining_fields_same_step = [f for f in all_fields if f['step'] == current_step and not f['signed']]
+    current_step = max(f['step'] for f in all_fields if f['signed']) \
+                   if any(f['signed'] for f in all_fields) else 0
+    remaining_fields_same_step = [
+        f for f in all_fields
+        if f['step'] == current_step and not f['signed']
+    ]
 
     if remaining_fields_same_step:
         # Ne pas envoyer l'email suivant car le signataire courant n’a pas fini
         return jsonify({'status': 'incomplete'})
 
-    # === Remplacement à partir de la ligne 14 ===
-    # Marquage de toutes les cases à cocher dans le PDF
+    # === Traiter toutes les cases à cocher dans le PDF ===
     for f in all_fields:
         if f['type'] == 'checkbox':
             mark = '☑' if f.get('value', False) else '☐'
             apply_text(pdf_path, f['x'], f['y'], mark, scale=1.5)
 
-    # Ensuite, on gère l’envoi de l’étape suivante ou du PDF final
+    # Envoyer l’étape suivante ou finaliser
     remaining = [f for f in all_fields if not f['signed']]
     if remaining:
         next_step = min(f['step'] for f in remaining)
-        send_email(data['session_id'], next_step)
+        send_email(session_id, next_step)
     else:
         send_pdf_to_all(session_data)
 
-    # Sauvegarde des mises à jour de session
+    # Sauvegarde des modifications
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
 
