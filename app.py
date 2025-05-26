@@ -177,7 +177,7 @@ def status(session_id):
 
 def apply_text(pdf_path, x, y, text, scale=1.5):
     html_width, html_height = 852, 512
-    offset_y = 100
+    offset_y = 120
     pdf_width, pdf_height = letter
     x_pdf = x * (pdf_width / html_width)
     y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height))
@@ -205,7 +205,7 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
 def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     width, height = 100, 40
     html_width, html_height = 852, 512
-    offset_y = 100
+    offset_y = 120
     pdf_width, pdf_height = letter
     x_pdf = x * (pdf_width / html_width)
     y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height)) - (height / 2)
