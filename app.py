@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, send_from_directory, jsonify
+from flask import Flask, request, render_template, send_from_directory, jsonify, abort, send_file
 import os
 import uuid
 import json
@@ -13,18 +13,26 @@ import io
 from PIL import Image, ImageDraw
 from reportlab.lib.utils import ImageReader
 
-
+# Chargement des variables d'environnement
 load_dotenv()
 
-app = Flask(__name__)
+# Configuration des dossiers
 UPLOAD_FOLDER = 'uploads'
 SESSION_FOLDER = 'sessions'
 TEMPLATES_FOLDER = 'templates_data'
 LOG_FOLDER = 'logs'
+
+# Offsets pour ajuster la position des cases à cocher (en pixels sur l’UI HTML)
+CHECKBOX_OFFSET_X = 5   # déplace vers la droite
+CHECKBOX_OFFSET_Y = 5   # déplace vers le bas
+
+# Création des dossiers si nécessaire
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(SESSION_FOLDER, exist_ok=True)
 os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
 os.makedirs(LOG_FOLDER, exist_ok=True)
+
+app = Flask(__name__)
 
 @app.route('/')
 def index():
@@ -111,7 +119,6 @@ def sign(session_id, step):
                            fields_all=session_data['fields'])
 
 @app.route('/fill-field', methods=['POST'])
-@app.route('/fill-field', methods=['POST'])
 def fill_field():
     data = request.get_json()
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
@@ -124,23 +131,24 @@ def fill_field():
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
 
     if field['type'] == 'signature':
-        pdf_input_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+        pdf_input_path = pdf_path
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
         apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        mark = data['value'] and '☑' or '☐'
-        apply_text(pdf_path, field['x'], field['y'], mark, scale=1.5)
+        mark = '☑' if data['value'] else '☐'
+        x = field['x'] + CHECKBOX_OFFSET_X
+        y = field['y'] + CHECKBOX_OFFSET_Y
+        apply_text(pdf_path, x, y, mark, scale=1.5)
     else:
         apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
 
-    # 🔥 AJOUT ESSENTIEL : on enregistre les changements dans session_data
+    # Enregistre les changements dans le JSON de session
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
 
     return jsonify({'status': 'ok'})
-
 
 @app.route('/finalise-signature', methods=['POST'])
 def finalise_signature():
@@ -150,9 +158,8 @@ def finalise_signature():
     with open(session_path) as f:
         session_data = json.load(f)
 
-    # --- Définition du chemin du PDF associé à cette session ---
+    # Chemin du PDF courant
     pdf_filename = session_data['pdf']
-    # chemin réel du PDF uploadé
     pdf_path = os.path.join(UPLOAD_FOLDER, pdf_filename)
 
     all_fields = session_data['fields']
@@ -164,16 +171,17 @@ def finalise_signature():
     ]
 
     if remaining_fields_same_step:
-        # Ne pas envoyer l'email suivant car le signataire courant n’a pas fini
         return jsonify({'status': 'incomplete'})
 
-    # === Traiter toutes les cases à cocher dans le PDF ===
+    # Traiter toutes les cases à cocher avec offsets
     for f in all_fields:
         if f['type'] == 'checkbox':
             mark = '☑' if f.get('value', False) else '☐'
-            apply_text(pdf_path, f['x'], f['y'], mark, scale=1.5)
+            x = f['x'] + CHECKBOX_OFFSET_X
+            y = f['y'] + CHECKBOX_OFFSET_Y
+            apply_text(pdf_path, x, y, mark, scale=1.5)
 
-    # Envoyer l’étape suivante ou finaliser
+    # Envoi de l'étape suivante ou envoi du PDF final
     remaining = [f for f in all_fields if not f['signed']]
     if remaining:
         next_step = min(f['step'] for f in remaining)
@@ -181,12 +189,11 @@ def finalise_signature():
     else:
         send_pdf_to_all(session_data)
 
-    # Sauvegarde des modifications
+    # Sauvegarde finale
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
 
     return jsonify({'status': 'finalised'})
-
 
 @app.route('/session/<session_id>/status')
 def status(session_id):
@@ -195,6 +202,7 @@ def status(session_id):
         session_data = json.load(f)
     done = all(f['signed'] for f in session_data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
+
 
 def apply_text(pdf_path, x, y, text, scale=1.5):
     html_width, html_height = 852, 512
@@ -257,6 +265,7 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
 
     with open(output_path, 'wb') as f:
         writer.write(f)
+
 def save_signature_image(data_url, session_id, index):
     if data_url.startswith("data:image/png;base64,"):
         data_url = data_url.replace("data:image/png;base64,", "")
@@ -316,7 +325,6 @@ def send_pdf_to_all(session_data):
             except Exception as e:
                 with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
                     log.write(f"[ERROR] PDF à {recipient} : {e}\n")
-
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
