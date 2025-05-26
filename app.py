@@ -129,11 +129,12 @@ def fill_field():
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
         apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
-    
-    elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path, field['x'], field['y'])
     else:
         apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
+    elif field['type'] == 'checkbox':
+        if data['value'] == "true":
+            apply_checkbox(pdf_path, field['x'], field['y'], True, scale=1.5)
+
 
     # 🔥 AJOUT ESSENTIEL : on enregistre les changements dans session_data
     with open(session_path, 'w') as f:
@@ -306,33 +307,22 @@ if __name__ == '__main__':
 
 
 
-def apply_checkbox(pdf_path, x, y):
-    html_width, html_height = 852, 512
-    offset_x, offset_y = 15, 35
-    pdf_width, pdf_height = letter
-    x_pdf = (x + offset_x) * (pdf_width / html_width)
-    y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height))
-
+def apply_checkbox(pdf_path, x, y, checked, scale=1.5):
+    # Charge le PDF existant
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
-    can.setLineWidth(2)
-
-    # Dessiner une croix en X centrée autour du point
-    size = 10
-    can.line(x_pdf - size/2, y_pdf - size/2, x_pdf + size/2, y_pdf + size/2)
-    can.line(x_pdf - size/2, y_pdf + size/2, x_pdf + size/2, y_pdf - size/2)
-
+    if checked:
+        can.setFont("Helvetica", 12)
+        can.drawString(x, y, "✗")  # Petite croix
     can.save()
-
     packet.seek(0)
-    overlay = PdfReader(packet)
-
-    for i, page in enumerate(reader.pages):
+    new_pdf = PdfReader(packet)
+    for i in range(len(reader.pages)):
+        page = reader.pages[i]
         if i == 0:
-            page.merge_page(overlay.pages[0])
+            page.merge_page(new_pdf.pages[0])
         writer.add_page(page)
-
-    with open(pdf_path, 'wb') as f:
+    with open(pdf_path, "wb") as f:
         writer.write(f)
