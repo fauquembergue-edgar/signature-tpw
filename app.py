@@ -129,13 +129,8 @@ def fill_field():
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
         apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
-    elif field['type'] == 'checkbox':
-        if data['value'] == "true":
-            apply_checkbox(pdf_path, field['x'], field['y'], True, scale=1.5)
     else:
         apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
-
-
 
     # 🔥 AJOUT ESSENTIEL : on enregistre les changements dans session_data
     with open(session_path, 'w') as f:
@@ -305,25 +300,3 @@ def send_pdf_to_all(session_data):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
-
-
-def apply_checkbox(pdf_path, x, y, checked, scale=1.5):
-    # Charge le PDF existant
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=letter)
-    if checked:
-        can.setFont("Helvetica", 12)
-        can.drawString(x, y, "✗")  # Petite croix
-    can.save()
-    packet.seek(0)
-    new_pdf = PdfReader(packet)
-    for i in range(len(reader.pages)):
-        page = reader.pages[i]
-        if i == 0:
-            page.merge_page(new_pdf.pages[0])
-        writer.add_page(page)
-    with open(pdf_path, "wb") as f:
-        writer.write(f)
