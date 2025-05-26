@@ -129,6 +129,9 @@ def fill_field():
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
         apply_signature(pdf_input_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
         session_data['pdf'] = new_pdf_name
+    elif field['type'] == 'checkbox':
+        mark = data['value'] and '☑' or '☐'
+        apply_text(pdf_path, field['x'], field['y'], mark, scale=1.5)
     else:
         apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
 
@@ -153,12 +156,18 @@ def finalise_signature():
     if remaining_fields_same_step:
         # Ne pas envoyer l'email suivant car le signataire courant n’a pas fini
         return jsonify({'status': 'incomplete'})
+    elif field['type'] == 'checkbox':
+        mark = data['value'] and '☑' or '☐'
+        apply_text(pdf_path, field['x'], field['y'], mark, scale=1.5)
     else:
         remaining = [f for f in all_fields if not f['signed']]
         if remaining:
             next_step = min(f['step'] for f in remaining)
             send_email(data['session_id'], next_step)
-        else:
+        elif field['type'] == 'checkbox':
+        mark = data['value'] and '☑' or '☐'
+        apply_text(pdf_path, field['x'], field['y'], mark, scale=1.5)
+    else:
             send_pdf_to_all(session_data)
 
         with open(session_path, 'w') as f:

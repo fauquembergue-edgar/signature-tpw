@@ -72,7 +72,13 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf => {
         zone.dataset.type = f.type;
         zone.dataset.index = index;
         zone.dataset.email = f.email;
-        zone.textContent = f.type === 'signature' ? 'Signature' : 'Texte';
+        if (f.type === 'signature') {
+      zone.textContent = 'Signature';
+    } else if (f.type === 'text') {
+      zone.textContent = 'Texte';
+    } else if (f.type === 'checkbox') {
+      zone.textContent = '☐';  // case vide
+    }
         container.appendChild(zone);
 
         if (f.email === signEmail) {
