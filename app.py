@@ -166,8 +166,8 @@ def finalise_signature():
             send_email(data['session_id'], next_step)
         elif field['type'] == 'checkbox':
             mark = data['value'] and '☑' or '☐'
-        apply_text(pdf_path, field['x'], field['y'], mark, scale=1.5)
-    else:
+            apply_text(pdf_path, field['x'], field['y'], mark, scale=1.5)
+        else:
             send_pdf_to_all(session_data)
 
         with open(session_path, 'w') as f:
