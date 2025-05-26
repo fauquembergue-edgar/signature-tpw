@@ -177,8 +177,11 @@ def status(session_id):
 
 def apply_text(pdf_path, x, y, text, scale=1.5):
     html_width, html_height = 852, 512
-    offset_y = 120
+    offset_y = 100
     pdf_width, pdf_height = letter
+
+    # Empêcher que y-offset soit négatif
+    y = max(offset_y, y)
     x_pdf = x * (pdf_width / html_width)
     y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height))
 
@@ -197,6 +200,10 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
         if i == 0:
             page.merge_page(overlay.pages[0])
         writer.add_page(page)
+
+    with open(pdf_path, 'wb') as f:
+        writer.write(f)
+
 
     with open(pdf_path, 'wb') as f:
         writer.write(f)
