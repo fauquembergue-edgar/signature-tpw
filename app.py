@@ -175,7 +175,7 @@ def status(session_id):
     done = all(f['signed'] for f in session_data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
-ef apply_text(pdf_path, x, y, text, scale=1.5):
+def apply_text(pdf_path, x, y, text, scale=1.5):
     html_width, html_height = 852, 512
     offset_x, offset_y = 15, 35
     pdf_width, pdf_height = letter
