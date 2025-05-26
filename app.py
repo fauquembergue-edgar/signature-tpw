@@ -151,7 +151,9 @@ def finalise_signature():
         session_data = json.load(f)
 
     # --- Définition du chemin du PDF associé à cette session ---
-    pdf_path = os.path.join(SESSION_FOLDER, f"{session_id}.pdf")
+    pdf_filename = session_data['pdf']
+    # chemin réel du PDF uploadé
+    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_filename)
 
     all_fields = session_data['fields']
     current_step = max(f['step'] for f in all_fields if f['signed']) \
