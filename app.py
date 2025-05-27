@@ -284,6 +284,58 @@ def save_signature_image(data_url, session_id, index):
         f.write(sig_data)
     return sig_path
 
+
+def send_email(session_id, step):
+    with open(os.path.join(SESSION_FOLDER, f"{session_id}.json")) as f:
+        data = json.load(f)
+    recipient = next((fld['email'] for fld in data['fields'] if fld.get('step', 0) == step), None)
+    if not recipient:
+        return
+    app_url = os.getenv('APP_URL', 'http://localhost:5000')
+    msg = EmailMessage()
+    msg['Subject'] = 'Signature requise'
+    msg['From'] = os.getenv('SMTP_USER')
+    msg['To'] = recipient
+    msg.set_content(f"{data.get('email_message', 'Bonjour, veuillez signer ici :')}
+{app_url}/sign/{session_id}/{step}")
+    try:
+        with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
+            server.starttls()
+            server.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASS'))
+            server.send_message(msg)
+    except Exception as e:
+        with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
+            log.write(f"[ERROR] email vers {recipient} : {e}
+")
+
+
+def send_pdf_to_all(session_data):
+    pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+    if not os.path.isfile(pdf_path):
+        return
+    with open(pdf_path, 'rb') as f:
+        content = f.read()
+    sent = set()
+    for fld in session_data['fields']:
+        recipient = fld['email']
+        if recipient and recipient not in sent:
+            sent.add(recipient)
+            msg = EmailMessage()
+            msg['Subject'] = 'Document signé final'
+            msg['From'] = os.getenv('SMTP_USER')
+            msg['To'] = recipient
+            msg.set_content('Voici le PDF final signé.')
+            msg.add_attachment(content, maintype='application', subtype='pdf', filename='document_final.pdf')
+            try:
+                with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
+                    server.starttls()
+                    server.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASS'))
+                    server.send_message(msg)
+            except Exception as e:
+                with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
+                    log.write(f"[ERROR] PDF à {recipient} : {e}
+")
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
