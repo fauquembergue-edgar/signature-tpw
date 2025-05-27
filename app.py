@@ -197,7 +197,7 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
 
     # Dimensions du rendu HTML
     html_width, html_height = 852, 512
-    offset_x, offset_y   = 42, 60
+    offset_x, offset_y   = 1, 1
 
     # Conversion UI → PDF
     x_pdf = (x + offset_x) * (pdf_width  / html_width)
@@ -232,7 +232,7 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
 
     # Dimensions du rendu HTML
     html_width, html_height = 852, 512
-    offset_x, offset_y     = 10, 130
+    offset_x, offset_y     = 1, 1
     width, height          = 100, 40
 
     # Conversion UI → PDF
@@ -275,7 +275,7 @@ def apply_checkbox(pdf_path, x, y, checked, size=12, scale=1.5):
 
     # Dimensions du rendu HTML
     html_width, html_height = 852, 512
-    offset_x, offset_y     = 60, 57
+    offset_x, offset_y     = 1, 1
 
     # Conversion UI → PDF
     x_pdf = (x + offset_x) * (pdf_width  / html_width)
