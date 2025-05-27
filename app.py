@@ -104,7 +104,15 @@ def fill_field():
     reader = PdfReader(pdf_path)
     pw = float(reader.pages[0].mediabox.width)
     ph = float(reader.pages[0].mediabox.height)
-    x_pdf, y_pdf = ui_ratio_to_pdf(data['x_ratio'], data['y_ratio'], pw, ph)
+    # on récupère les coords absolues (points depuis coin sup‐gauche)
+    fld = session['fields'][data['field_index']]
+    x = fld['x']            # déjà en points PDF
+    y = fld['y']            # distance depuis le haut de la page
+    # conversion top-left → bottom-left
+    x_pdf = x
+    # si l’élément a une "hauteur" prédéfinie (size, hauteur de signature…), on la soustrait ici :
+    # par défaut on ne retranche rien, on laisse la boîte démarrer à y_pdf
+    y_pdf = ph - y
 
     if fld['type']=='signature':
         out_name = f"signed_{uuid.uuid4()}.pdf"
@@ -165,30 +173,19 @@ def apply_text(reader, pdf_input, out_path, x_pdf, y_pdf):
 
 def apply_signature(reader, pdf_input, out_path, x_pdf, y_pdf,
                     width=100, height=40):
+    """
+    On récupère d’abord le fichier PNG enregistré pour ce signataire
+    (déjà stocké par save_signature_image), puis on le place.
+    """
     packet = io.BytesIO()
-    c = pdfcanvas.Canvas(packet, pagesize=(float(reader.pages[0].mediabox.width),
-                                           float(reader.pages[0].mediabox.height)))
-    # signature drawn via ImageReader® already parsed
-    # merge then write
-    packet.seek(0)
-    overlay = PdfReader(packet)
-    writer = PdfWriter()
-    for i, page in enumerate(reader.pages):
-        if i==0: page.merge_page(overlay.pages[0])
-        writer.add_page(page)
-    with open(out_path, 'wb') as f:
-        writer.write(f)
-
-
-def apply_checkbox(reader, pdf_input, out_path, x_pdf, y_pdf, checked,
-                   size=12):
-    packet = io.BytesIO()
-    c = pdfcanvas.Canvas(packet, pagesize=(float(reader.pages[0].mediabox.width),
-                                           float(reader.pages[0].mediabox.height)))
-    c.rect(x_pdf, y_pdf, size, size)
-    if checked:
-        c.line(x_pdf, y_pdf, x_pdf+size, y_pdf+size)
-        c.line(x_pdf, y_pdf+size, x_pdf+size, y_pdf)
+    page_w = float(reader.pages[0].mediabox.width)
+    page_h = float(reader.pages[0].mediabox.height)
+    c = pdfcanvas.Canvas(packet, pagesize=(page_w, page_h))
+    # charger l'image de signature
+    sig_path = save_signature_image(fld['value'], session_id, data['field_index'])
+    img = ImageReader(sig_path)
+    # dessiner l'image en partant de x_pdf, y_pdf (bottom-left origin)
+    c.drawImage(img, x_pdf, (page_h - fld['y'] - height), width=width, height=height)
     c.save()
     packet.seek(0)
     overlay = PdfReader(packet)
@@ -196,7 +193,32 @@ def apply_checkbox(reader, pdf_input, out_path, x_pdf, y_pdf, checked,
     for i, page in enumerate(reader.pages):
         if i==0: page.merge_page(overlay.pages[0])
         writer.add_page(page)
-    with open(pdf_input if out_path is None else out_path, 'wb') as f:
+    with open(out_path, 'wb') as f(out_path, 'wb') as f:
+        writer.write(f)
+
+
+def apply_checkbox(reader, pdf_input, out_path, x_pdf, y_pdf, checked,
+                   size=12, y_offset=0):
+    """
+    y_offset : décale vers le bas la boîte (par ex. =size si y_pdf était depuis top)
+    """
+    packet = io.BytesIO()
+    page_w = float(reader.pages[0].mediabox.width)
+    page_h = float(reader.pages[0].mediabox.height)
+    c = pdfcanvas.Canvas(packet, pagesize=(page_w, page_h))
+    # on dessine la case en descendant d'un y_offset si besoin
+    c.rect(x_pdf, y_pdf - y_offset, size, size)
+    if checked:
+        c.line(x_pdf, y_pdf - y_offset, x_pdf+size, y_pdf - y_offset+size)
+        c.line(x_pdf, y_pdf - y_offset+size, x_pdf+size, y_pdf - y_offset)
+    c.save()
+    packet.seek(0)
+    overlay = PdfReader(packet)
+    writer = PdfWriter()
+    for i, page in enumerate(reader.pages):
+        if i==0: page.merge_page(overlay.pages[0])
+        writer.add_page(page)
+    with open(pdf_input if out_path is None else out_path, 'wb') as f(pdf_input if out_path is None else out_path, 'wb') as f:
         writer.write(f)
 
 def save_signature_image(data_url, session_id, index):
