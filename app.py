@@ -189,31 +189,84 @@ def status(session_id):
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
 def apply_text(pdf_path, x, y, text, scale=1.5):
+    # Lecture de la page PDF pour récupérer sa taille
+    reader = PdfReader(pdf_path)
+    page0 = reader.pages[0]
+    pdf_width = float(page0.mediabox.width)
+    pdf_height = float(page0.mediabox.height)
+
+    # Dimensions du rendu HTML
     html_width, html_height = 852, 512
-    offset_x, offset_y = 40, 50
-    pdf_width, pdf_height = letter
-    x_pdf = (x + offset_x) * (pdf_width / html_width)
+    offset_x, offset_y   = 40, 55
+
+    # Conversion UI → PDF
+    x_pdf = (x + offset_x) * (pdf_width  / html_width)
     y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height))
 
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
+    # Création de l'overlay textuel
     packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=letter)
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.setFont("Helvetica", 12)
     can.drawString(x_pdf, y_pdf, text)
     can.save()
 
+    # Fusion dans le PDF
     packet.seek(0)
     overlay = PdfReader(packet)
+    writer = PdfWriter()
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
         writer.add_page(page)
+
     with open(pdf_path, 'wb') as f:
         writer.write(f)
 
 
 def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
+    # Lecture de la page PDF pour récupérer sa taille
+    reader = PdfReader(pdf_path)
+    page0 = reader.pages[0]
+    pdf_width = float(page0.mediabox.width)
+    pdf_height = float(page0.mediabox.height)
+
+    # Dimensions du rendu HTML
+    html_width, html_height = 852, 512
+    offset_x, offset_y     = 1, 120
+    width, height          = 100, 40
+
+    # Conversion UI → PDF
+    x_pdf = (x + offset_x) * (pdf_width / html_width)
+    y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height)) - (height / 2)
+
+    # Préparation de l'image
+    if sig_data.startswith("data:image/png;base64,"):
+        sig_data = sig_data.split(",", 1)[1]
+    image_bytes = base64.b64decode(sig_data)
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+
+    # Dessin de la signature
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+    img_io = io.BytesIO()
+    image.save(img_io, format="PNG")
+    img_io.seek(0)
+    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
+    can.save()
+
+    # Fusion dans le nouveau PDF
+    packet.seek(0)
+    overlay = PdfReader(packet)
+    writer = PdfWriter()
+    for i, page in enumerate(reader.pages):
+        if i == 0:
+            page.merge_page(overlay.pages[0])
+        writer.add_page(page)
+
+    with open(output_path, 'wb') as f:
+        writer.write(f)
+
+(pdf_path, sig_data, output_path, x, y, scale=1.5):
     width, height = 100, 40
     html_width, html_height = 852, 512
     offset_x, offset_y = 1, 120
@@ -246,18 +299,23 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
         writer.write(f)
 
 def apply_checkbox(pdf_path, x, y, checked, size=12, scale=1.5):
-    # Conversion des coordonnées HTML vers PDF
+    # Lecture de la page PDF pour récupérer sa taille
+    reader = PdfReader(pdf_path)
+    page0 = reader.pages[0]
+    pdf_width = float(page0.mediabox.width)
+    pdf_height = float(page0.mediabox.height)
+
+    # Dimensions du rendu HTML
     html_width, html_height = 852, 512
-    offset_x, offset_y = 60, 65
-    pdf_width, pdf_height = letter
+    offset_x, offset_y     = 40, 55
+
+    # Conversion UI → PDF
     x_pdf = (x + offset_x) * (pdf_width  / html_width)
     y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height)) - size/2
 
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
+    # Dessin de l'overlay
     packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=letter)
-    # Dessine la case
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.rect(x_pdf, y_pdf, size, size, stroke=1, fill=0)
     if checked:
         can.setLineWidth(1.5)
@@ -265,13 +323,18 @@ def apply_checkbox(pdf_path, x, y, checked, size=12, scale=1.5):
         can.line(x_pdf, y_pdf+size, x_pdf+size, y_pdf)
     can.save()
 
+    # Fusion dans le PDF existant
     packet.seek(0)
     overlay = PdfReader(packet)
+    writer = PdfWriter()
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
         writer.add_page(page)
+
     with open(pdf_path, 'wb') as f:
+        writer.write(f)
+
         writer.write(f)
 
 
@@ -296,7 +359,8 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"{data.get('email_message', 'Bonjour, veuillez signer ici :')}\n{app_url}/sign/{session_id}/{step}")
+    msg.set_content(f"{data.get('email_message', 'Bonjour, veuillez signer ici :')}
+{app_url}/sign/{session_id}/{step}")
 
     try:
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
@@ -305,20 +369,18 @@ def send_email(session_id, step):
             server.send_message(msg)
     except Exception as e:
         with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] email vers {recipient} : {e}\n")
+            log.write(f"[ERROR] email vers {recipient} : {e}
+")
 
-def send_pdf_to_all(session_data):
+def send_pdf_to_all(session_data):(session_data):
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-
     if not os.path.isfile(pdf_path):
         return
-
     with open(pdf_path, 'rb') as f:
         content = f.read()
-
     sent = set()
-    for f in session_data['fields']:
-        recipient = f['email']
+    for fld in session_data['fields']:
+        recipient = fld['email']
         if recipient and recipient not in sent:
             sent.add(recipient)
             msg = EmailMessage()
@@ -334,8 +396,9 @@ def send_pdf_to_all(session_data):
                     server.send_message(msg)
             except Exception as e:
                 with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                    log.write(f"[ERROR] PDF à {recipient} : {e}\n")
-                    
+                    log.write(f"[ERROR] PDF à {recipient} : {e}
+")
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
