@@ -282,8 +282,7 @@ def save_signature_image(data_url, session_id, index):
     sig_path = os.path.join(UPLOAD_FOLDER, f"{session_id}_sig_{index}.png")
     with open(sig_path, 'wb') as f:
         f.write(sig_data)
-        return sig_path
-
+    return sig_path
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
