@@ -273,6 +273,18 @@ def apply_checkbox(pdf_path, x, y, checked, size=12, scale=1.5):
         writer.add_page(page)
     with open(pdf_path, 'wb') as f:
         writer.write(f)
+
+
 def save_signature_image(data_url, session_id, index):
-     if data_url.startswith("data:image/png;base64,"):
-         data_url = data_url.replace("data:image/png;base64,", "")
+    if data_url.startswith("data:image/png;base64,"):
+        data_url = data_url.replace("data:image/png;base64,", "")
+    sig_data = base64.b64decode(data_url)
+    sig_path = os.path.join(UPLOAD_FOLDER, f"{session_id}_sig_{index}.png")
+    with open(sig_path, 'wb') as f:
+        f.write(sig_data)
+        return sig_path
+
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
