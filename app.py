@@ -135,9 +135,9 @@ def fill_field():
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
 
-    # Récupération des dimensions du viewer HTML
-    vw = data.get('viewer_width')
-    vh = data.get('viewer_height')
+    # Récupération des dimensions du viewer HTML (fallback automatique)
+    vw = float(data.get('viewer_width', 852))  # valeur par défaut si manquante
+    vh = float(data.get('viewer_height', 512))
 
     if field['type'] == 'signature':
         new_name = f"signed_{uuid.uuid4()}.pdf"
