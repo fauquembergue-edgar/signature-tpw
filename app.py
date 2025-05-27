@@ -120,18 +120,22 @@ def fill_field():
     field['value'] = data['value']
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+    x_off = field.get('x_offset', 0)
+    y_off = field.get('y_offset', 0)
 
     # Apply based on field type
     if field['type'] == 'signature':
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5)
+        apply_signature(pdf_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5,
+                        x_offset=x_off, y_offset=y_off)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        # draw a checkbox, checked if value truthy
-        apply_checkbox(pdf_path, field['x'], field['y'], data['value'] in ['true', 'on', '1'], scale=1.5)
+        apply_checkbox(pdf_path, field['x'], field['y'], data['value'] in ['true', 'on', '1'], scale=1.5,
+                       x_offset=x_off, y_offset=y_off)
     else:
-        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5)
+        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5,
+                   x_offset=x_off, y_offset=y_off)
 
     # Save updated session
     with open(session_path, 'w') as f:
@@ -174,10 +178,10 @@ def status(session_id):
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
 # --- Rendering functions ---
-def apply_text(pdf_path, x, y, text, scale=1.5):
+def apply_text(pdf_path, x, y, text, scale=1.5, x_offset=0, y_offset=0):
     pdf_width, pdf_height = letter
-    x_pdf = x * (pdf_width / 1000)
-    y_pdf = pdf_height - (y * (pdf_height / 1400))
+    x_pdf = (x + x_offset) * (pdf_width / 1000) * scale
+    y_pdf = pdf_height - ((y + y_offset) * (pdf_height / 1400) * scale)
 
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
@@ -199,11 +203,11 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
         writer.write(f)
 
 
-def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
-    width, height = 100, 40
+def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5, x_offset=0, y_offset=0):
+    width, height = 100 * scale, 40 * scale
     pdf_width, pdf_height = letter
-    x_pdf = x * (pdf_width / 1000)
-    y_pdf = pdf_height - (y * (pdf_height / 1400)) - height / 2
+    x_pdf = (x + x_offset) * (pdf_width / 1000) - width/2
+    y_pdf = pdf_height - ((y + y_offset) * (pdf_height / 1400)) - height/2
 
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",")[1]
@@ -232,21 +236,19 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     with open(output_path, 'wb') as f:
         writer.write(f)
 
-def apply_checkbox(pdf_path, x, y, checked, scale=1.5):
-    # Draw a checkbox square and an optional checkmark
-    size = 15  # size of box in points
+
+def apply_checkbox(pdf_path, x, y, checked, scale=1.5, x_offset=0, y_offset=0):
+    size = 15 * scale  # size of box in points
     pdf_width, pdf_height = letter
-    x_pdf = x * (pdf_width / 1000)
-    y_pdf = pdf_height - (y * (pdf_height / 1400)) - size/2
+    x_pdf = (x + x_offset) * (pdf_width / 1000) - size/2
+    y_pdf = pdf_height - ((y + y_offset) * (pdf_height / 1400)) - size/2
 
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
-    # draw square
     can.rect(x_pdf, y_pdf, size, size)
     if checked:
-        # draw checkmark
         can.setLineWidth(2)
         can.line(x_pdf, y_pdf, x_pdf+size, y_pdf+size)
         can.line(x_pdf, y_pdf+size, x_pdf+size, y_pdf)
@@ -260,6 +262,7 @@ def apply_checkbox(pdf_path, x, y, checked, scale=1.5):
         writer.add_page(page)
     with open(pdf_path, 'wb') as f:
         writer.write(f)
+
 
 def save_signature_image(data_url, session_id, index):
     if data_url.startswith("data:image/png;base64,"):
