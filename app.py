@@ -190,7 +190,7 @@ def status(session_id):
 
 def apply_text(pdf_path, x, y, text, scale=1.5):
     html_width, html_height = 852, 512
-    offset_x, offset_y = 40, 55
+    offset_x, offset_y = 40, 50
     pdf_width, pdf_height = letter
     x_pdf = (x + offset_x) * (pdf_width / html_width)
     y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height))
@@ -248,7 +248,7 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
 def apply_checkbox(pdf_path, x, y, checked, size=12, scale=1.5):
     # Conversion des coordonnées HTML vers PDF
     html_width, html_height = 852, 512
-    offset_x, offset_y = 40, 55
+    offset_x, offset_y = 60, 65
     pdf_width, pdf_height = letter
     x_pdf = (x + offset_x) * (pdf_width  / html_width)
     y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height)) - size/2
