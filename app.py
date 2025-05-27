@@ -266,38 +266,6 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     with open(output_path, 'wb') as f:
         writer.write(f)
 
-(pdf_path, sig_data, output_path, x, y, scale=1.5):
-    width, height = 100, 40
-    html_width, html_height = 852, 512
-    offset_x, offset_y = 1, 120
-    pdf_width, pdf_height = letter
-    x_pdf = (x + offset_x) * (pdf_width / html_width)
-    y_pdf = pdf_height - ((y - offset_y) * (pdf_height / html_height)) - (height / 2)
-
-    if sig_data.startswith("data:image/png;base64,"):
-        sig_data = sig_data.split(",")[1]
-    image_bytes = base64.b64decode(sig_data)
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
-
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=letter)
-    img_io = io.BytesIO()
-    image.save(img_io, format="PNG")
-    img_io.seek(0)
-    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
-    can.save()
-
-    packet.seek(0)
-    overlay = PdfReader(packet)
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
-    for i, page in enumerate(reader.pages):
-        if i == 0:
-            page.merge_page(overlay.pages[0])
-        writer.add_page(page)
-    with open(output_path, 'wb') as f:
-        writer.write(f)
-
 def apply_checkbox(pdf_path, x, y, checked, size=12, scale=1.5):
     # Lecture de la page PDF pour récupérer sa taille
     reader = PdfReader(pdf_path)
@@ -335,7 +303,6 @@ def apply_checkbox(pdf_path, x, y, checked, size=12, scale=1.5):
     with open(pdf_path, 'wb') as f:
         writer.write(f)
 
-        writer.write(f)
 
 
 def save_signature_image(data_url, session_id, index):
