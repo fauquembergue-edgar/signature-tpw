@@ -178,7 +178,7 @@ def status(session_id):
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
 # --- Rendering functions ---
-def apply_text(pdf_path, x, y, text, scale=1.5, x_offset=0, y_offset=0):
+def apply_text(pdf_path, x, y, text, scale=1.5, x_offset=10, y_offset=0):
     pdf_width, pdf_height = letter
     x_pdf = (x + x_offset) * (pdf_width / 1000) * scale
     y_pdf = pdf_height - ((y + y_offset) * (pdf_height / 1400) * scale)
@@ -203,7 +203,7 @@ def apply_text(pdf_path, x, y, text, scale=1.5, x_offset=0, y_offset=0):
         writer.write(f)
 
 
-def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5, x_offset=0, y_offset=0):
+def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5, x_offset=10, y_offset=0):
     width, height = 100 * scale, 40 * scale
     pdf_width, pdf_height = letter
     x_pdf = (x + x_offset) * (pdf_width / 1000) - width/2
@@ -237,7 +237,7 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5, x_offset=0
         writer.write(f)
 
 
-def apply_checkbox(pdf_path, x, y, checked, scale=1.5, x_offset=0, y_offset=0):
+def apply_checkbox(pdf_path, x, y, checked, scale=1.5, x_offset=20, y_offset=0):
     size = 15 * scale  # size of box in points
     pdf_width, pdf_height = letter
     x_pdf = (x + x_offset) * (pdf_width / 1000) - size/2
