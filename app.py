@@ -120,22 +120,17 @@ def fill_field():
     field['value'] = data['value']
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-    x_off = field.get('x_offset', 0)
-    y_off = field.get('y_offset', 0)
 
-    # Apply based on field type
+    # Apply based on field type using adapted functions
     if field['type'] == 'signature':
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_path, field['value'], new_pdf_path, field['x'], field['y'], scale=1.5,
-                        x_offset=x_off, y_offset=y_off)
+        apply_signature(pdf_path, field['value'], new_pdf_path, field['x'], field['y'])
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path, field['x'], field['y'], data['value'] in ['true', 'on', '1'], scale=1.5,
-                       x_offset=x_off, y_offset=y_off)
+        apply_checkbox(pdf_path, field['x'], field['y'], data['value'] in ['true', 'on', '1'])
     else:
-        apply_text(pdf_path, field['x'], field['y'], data['value'], scale=1.5,
-                   x_offset=x_off, y_offset=y_off)
+        apply_text(pdf_path, field['x'], field['y'], data['value'])
 
     # Save updated session
     with open(session_path, 'w') as f:
