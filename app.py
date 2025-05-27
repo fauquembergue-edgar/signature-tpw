@@ -142,7 +142,7 @@ def finalise_signature():
         send_email(data['session_id'], min(fld['step'] for fld in pending))
     else:
         send_pdf_to_all(session)
-    with open(os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")), 'w') as f:
+    with open(os.path.join(SESSION_FOLDER, f"{data['session_id']}.json"), 'w') as f:
         json.dump(session, f)
     return jsonify({'status':'finalised'})
 
