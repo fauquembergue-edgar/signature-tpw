@@ -104,11 +104,13 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
 # --- AJOUT traitement des zones statictext AVANT création session signature
-def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px):
+def apply_static_text_fields(pdf_path, fields):
     for field in fields:
         if field["type"] == "statictext":
             page_num = field.get('page', 0)
             field_height = field.get('h', 40)
+            html_width_px = field.get('html_width_px', 893.6)
+            html_height_px = field.get('html_height_px', 1267.6)
             apply_text(
                 pdf_path,
                 field['x'],
