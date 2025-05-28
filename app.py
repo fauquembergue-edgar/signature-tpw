@@ -272,3 +272,8 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_h, scale_x, scale_y, size
         writer.add_page(page)
     with open(pdf_path, 'wb') as f:
         writer.write(f)
+
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
