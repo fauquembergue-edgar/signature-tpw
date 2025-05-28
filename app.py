@@ -317,8 +317,7 @@ def send_email(session_id, step):
     # message personnalisé ou par défaut
     body = data.get('email_message') or f"Bonjour, veuillez signer ici : {link}"
     if link not in body:
-        body = f"{body}
-{link}"
+        body = f"{body}\n{link}"
     msg.set_content(body)
     # envoi SMTP
     try:
