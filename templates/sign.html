@@ -123,8 +123,8 @@ function handleClick(zone, type, index) {
           step: step,
           field_index: index,
           value: input.value,
-          x_px: zone.offsetLeft / scale,
-          y_px: zone.offsetTop / scale,
+          x_px: fields[index].x,
+          y_px: fields[index].y,
           html_width_px: canvas.width,
           html_height_px: canvas.height
         })
@@ -175,8 +175,8 @@ function handleClick(zone, type, index) {
           step: step,
           field_index: index,
           value: checkbox.checked,
-          x_px: zone.offsetLeft / scale,
-          y_px: zone.offsetTop / scale,
+          x_px: fields[index].x,
+          y_px: fields[index].y,
           html_width_px: canvas.width,
           html_height_px: canvas.height
         })
@@ -222,8 +222,8 @@ function sendSigFile(index, zone) {
         step: step,
         field_index: index,
         value: reader.result,
-        x_px: zone.offsetLeft / scale,
-        y_px: zone.offsetTop / scale,
+        x_px: fields[index].x,
+        y_px: fields[index].y,
         html_width_px: canvas.width,
         html_height_px: canvas.height
       })
@@ -243,8 +243,8 @@ function sendSigDraw(index, zone) {
       step: step,
       field_index: index,
       value: dataURL,
-      x_px: zone.offsetLeft / scale,
-      y_px: zone.offsetTop / scale,
+      x_px: fields[index].x,
+      y_px: fields[index].y,
       html_width_px: canvas.width,
       html_height_px: canvas.height
     })
@@ -273,9 +273,4 @@ submitBtn.onclick = () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, message_final: finalMessage })
   }).then(() => {
-    alert("Signature finalisée. Vous pouvez fermer cette page.");
-  });
-};
-</script>
-</body>
-</html>
+    alert("Signature
