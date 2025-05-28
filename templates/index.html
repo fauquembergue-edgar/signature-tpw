@@ -45,6 +45,13 @@
       height: 12px;
       margin-right: 5px;
     }
+    .statictext-box {
+      border: 2px dashed #338DFF !important;
+      background: #e6f0ff !important;
+      color: #338DFF !important;
+      font-weight: bold;
+      font-size: 15px;
+    }
   </style>
 </head>
 <body>
@@ -62,6 +69,7 @@
     <button class="btn" onclick="selectType('text')">Zone de texte</button>
     <button class="btn" onclick="selectType('signature')">Zone de signature</button>
     <button class="btn" onclick="selectType('checkbox')">Case à cocher</button>
+    <button class="btn" onclick="selectType('statictext')" style="background:#338DFF;">Zone texte statique</button>
   </div>
 
   <div>
@@ -180,22 +188,42 @@ function updateSignatairesList() {
   });
 }
 
+// --- Ajout du champ directement sur le PDF ---
 canvas.addEventListener('click', function(event) {
   if (!currentType) return alert("Choisissez un type.");
-  const emailRadio = document.querySelector('input[name="signataire"]:checked');
-  if (!emailRadio) return alert("Sélectionnez un signataire.");
-  const email = emailRadio.value;
+  // Statictext ne nécessite pas de signataire
+  let email = null;
+  if (currentType !== "statictext") {
+    const emailRadio = document.querySelector('input[name="signataire"]:checked');
+    if (!emailRadio) return alert("Sélectionnez un signataire.");
+    email = emailRadio.value;
+  }
   const rect = canvas.getBoundingClientRect();
   const x = (event.clientX - rect.left) / scale;
   const y = (event.clientY - rect.top) / scale;
   const id = fieldId++;
-  const color = COLORS[signataires.findIndex(s => s.email === email) % COLORS.length];
-  const field = { id, type: currentType, email, x, y, signed: false };
+  let color = "#338DFF";
+  if (currentType !== "statictext") {
+    color = COLORS[signataires.findIndex(s => s.email === email) % COLORS.length];
+  }
+  let field;
+  if (currentType === "statictext") {
+    const value = prompt("Texte à afficher dans la zone ?");
+    if (!value) return;
+    field = { id, type: currentType, x, y, value };
+  } else {
+    field = { id, type: currentType, email, x, y, signed: false };
+  }
   fields.push(field);
 
   const div = document.createElement('div');
   div.className = 'field-box';
-  div.innerText = currentType.toUpperCase();
+  if (currentType === "statictext") {
+    div.classList.add('statictext-box');
+    div.innerText = field.value;
+  } else {
+    div.innerText = currentType.toUpperCase();
+  }
   div.style.left = (x * scale) + 'px';
   div.style.top = (y * scale) + 'px';
   div.style.border = `2px dashed ${color}`;
@@ -267,10 +295,18 @@ function loadTemplate() {
           fields.push(field);
           const div = document.createElement('div');
           div.className = 'field-box';
-          div.innerText = field.type.toUpperCase();
+          if (field.type === "statictext") {
+            div.classList.add('statictext-box');
+            div.innerText = field.value;
+          } else {
+            div.innerText = field.type.toUpperCase();
+          }
           div.style.left = (field.x * scale) + 'px';
           div.style.top = (field.y * scale) + 'px';
-          const color = COLORS[signataires.findIndex(s => s.email === field.email) % COLORS.length];
+          let color = "#338DFF";
+          if (field.type !== "statictext") {
+            color = COLORS[signataires.findIndex(s => s.email === field.email) % COLORS.length];
+          }
           div.style.border = `2px dashed ${color}`;
           const removeBtn = document.createElement('button');
           removeBtn.innerText = '×';
