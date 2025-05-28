@@ -65,6 +65,8 @@ const canvas = document.getElementById('pdf-canvas');
 const ctx = canvas.getContext('2d');
 const container = document.getElementById('pdf-container');
 
+console.log("PDF = {{ pdf }}"); // Pour debug
+
 // Affichage du PDF et des zones
 pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
   pdf.getPage(1).then(page => {
@@ -152,8 +154,8 @@ function handleClick(zone, type, index) {
       <canvas id="sigCanvas" width="300" height="100"></canvas><br>
       <button id="sigDrawBtn" style="pointer-events:auto;">Valider dessin</button>
     `;
-    document.getElementById('sigFileBtn').onclick = () => sendSigFile(index, zone);
-    document.getElementById('sigDrawBtn').onclick = () => sendSigDraw(index, zone);
+    document.getElementById('sigFileBtn').onclick = () => sendSigFile(index);
+    document.getElementById('sigDrawBtn').onclick = () => sendSigDraw(index);
     initSigCanvas();
   }
   else if (type === 'checkbox') {
@@ -210,7 +212,7 @@ function initSigCanvas() {
   };
 }
 
-function sendSigFile(index, zone) {
+function sendSigFile(index) {
   const file = document.getElementById('sigFile').files[0];
   const reader = new FileReader();
   reader.onload = () => {
@@ -232,7 +234,7 @@ function sendSigFile(index, zone) {
   if (file) reader.readAsDataURL(file);
 }
 
-function sendSigDraw(index, zone) {
+function sendSigDraw(index) {
   const canvasDraw = document.getElementById('sigCanvas');
   const dataURL = canvasDraw.toDataURL('image/png');
   fetch('/fill-field', {
@@ -273,4 +275,9 @@ submitBtn.onclick = () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, message_final: finalMessage })
   }).then(() => {
-    alert("Signature
+    alert("Signature finalisée. Vous pouvez fermer cette page.");
+  });
+};
+</script>
+</body>
+</html>
