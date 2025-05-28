@@ -34,7 +34,6 @@ def get_pdf_page_size(pdf_path, page_num=0):
     return width, height
 
 def html_to_pdf_coords(x_html, y_html, h_zone, html_w, html_h, pdf_w, pdf_h):
-    # Produit en croix pour conversion HTML->PDF (origine en haut à gauche HTML, bas à gauche PDF)
     scale_x = pdf_w / html_w
     scale_y = pdf_h / html_h
     x_pdf = x_html * scale_x
@@ -73,8 +72,7 @@ def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_
 
 def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    width, height = 100, field_height  # adapte width à ta logique si besoin
-    # Pour image, -h_zone déjà dans html_to_pdf_coords, donc rien à ajouter
+    width, height = 100, field_height
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, height, html_width_px, html_height_px, pdf_width, pdf_height)
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",", 1)[1]
@@ -93,7 +91,6 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
 
 def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    # Pour checkbox, -size déjà dans html_to_pdf_coords
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, size, html_width_px, html_height_px, pdf_width, pdf_height)
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
@@ -105,6 +102,23 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     can.save()
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
+
+# --- AJOUT traitement des zones statictext AVANT création session signature
+def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px):
+    for field in fields:
+        if field["type"] == "statictext":
+            page_num = field.get('page', 0)
+            field_height = field.get('h', 40)
+            apply_text(
+                pdf_path,
+                field['x'],
+                field['y'],
+                field['value'],
+                html_width_px,
+                html_height_px,
+                field_height=field_height,
+                page_num=page_num
+            )
 
 @app.route('/')
 def index():
@@ -118,7 +132,7 @@ def index():
                 "pdf": data["pdf"],
                 "name": data.get("nom_demande", ""),
                 "fields": data["fields"],
-                "done": all(f.get("signed") for f in data["fields"])
+                "done": all(f.get("signed") for f in data["fields"] if f["type"] != "statictext")
             }
     templates = [f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')]
     return render_template("index.html", templates=templates, sessions=sessions)
@@ -161,9 +175,11 @@ def define_fields():
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
     fields = data['fields']
+    # On suppose que les dimensions du canvas sont fixes ou transmises, sinon à adapter
+    html_width_px = data.get('html_width_px', 893.6)
+    html_height_px = data.get('html_height_px', 1267.6)
     for i, field in enumerate(fields):
         field['signed'] = False
-        field['value'] = ''
         field['step'] = i
         field['page'] = field.get('page', 0)
         if 'h' not in field:
@@ -173,6 +189,9 @@ def define_fields():
                 field['h'] = 15
             else:
                 field['h'] = 40
+    # Appliquer les textes statiques sur le PDF AVANT session
+    pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
+    apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px)
     session_data = {
         'pdf': data['pdf'],
         'fields': fields,
@@ -241,10 +260,10 @@ def finalise_signature():
         session_data['message_final'] = data['message_final']
     all_fields = session_data['fields']
     current_step = max(f['step'] for f in all_fields if f['signed']) if any(f['signed'] for f in all_fields) else 0
-    remaining_same = [f for f in all_fields if f['step']==current_step and not f['signed']]
+    remaining_same = [f for f in all_fields if f['step']==current_step and not f['signed'] and f["type"] != "statictext"]
     if remaining_same:
         return jsonify({'status': 'incomplete'})
-    remaining = [f for f in all_fields if not f['signed']]
+    remaining = [f for f in all_fields if not f['signed'] and f["type"] != "statictext"]
     if remaining:
         next_step = min(f['step'] for f in remaining)
         send_email(data['session_id'], next_step)
@@ -259,14 +278,14 @@ def status(session_id):
     path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(path) as f:
         data = json.load(f)
-    done = all(f['signed'] for f in data['fields'])
+    done = all(f['signed'] for f in data['fields'] if f["type"] != "statictext")
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
 def send_email(session_id, step):
     session_file = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(session_file) as f:
         data = json.load(f)
-    recipient = next((fld['email'] for fld in data['fields'] if fld.get('step', 0) == step), None)
+    recipient = next((fld['email'] for fld in data['fields'] if fld.get('step', 0) == step and fld["type"] != "statictext"), None)
     if not recipient:
         return
     app_url = os.getenv('APP_URL', 'http://localhost:5000')
