@@ -38,7 +38,7 @@ def html_to_pdf_coords(x_html, y_html, h_zone, html_w, html_h, pdf_w, pdf_h):
     scale_x = pdf_w / html_w
     scale_y = pdf_h / html_h
     x_pdf = x_html * scale_x
-    y_pdf = (html_h - y_html) * scale_y
+    y_pdf = (html_h - y_html - h_zone) * scale_y
     print(f"[COORD] HTML({x_html},{y_html}) h={h_zone} -> PDF({x_pdf:.2f},{y_pdf:.2f})")
     return x_pdf, y_pdf
 
