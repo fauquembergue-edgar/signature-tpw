@@ -79,6 +79,10 @@ const canvas = document.getElementById('pdf-canvas');
 const ctx = canvas.getContext('2d');
 const container = document.getElementById('pdf-container');
 
+// Ces valeurs doivent correspondre au référentiel de l'index (où tu crées les zones)
+const width_index = 931.5;
+const height_index = 1250;
+
 pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
   pdf.getPage(1).then(page => {
     const viewport = page.getViewport({ scale: 1 });
@@ -88,20 +92,34 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
   })
 ).then(() => {
   fields.forEach((f, index) => {
+    // Produit en croix pour statictext
+    let left, top, width, height;
+    if (f.type === 'statictext') {
+      left = f.x * canvas.width / width_index;
+      top = f.y * canvas.height / height_index;
+      width = (f.w || 100) * canvas.width / width_index;
+      height = (f.h || 40) * canvas.height / height_index;
+    } else {
+      left = f.x;
+      top = f.y;
+      width = (f.w || 100);
+      height = (f.h || 40);
+    }
+
     const zone = document.createElement('div');
     zone.className = 'zone';
-    zone.style.left        = `${f.x}px`;
-    zone.style.top         = `${f.y}px`;
-    zone.style.width       = `${(f.w || 100)}px`;
-    zone.style.height      = `${(f.h || 40)}px`;
+
+    zone.style.left        = `${left}px`;
+    zone.style.top         = `${top}px`;
+    zone.style.width       = `${width}px`;
+    zone.style.height      = `${height}px`;
     zone.dataset.type      = f.type;
     zone.dataset.index     = index;
     zone.dataset.email     = f.email;
 
     if (f.type === 'statictext') {
-      // Important: texte positionné sans padding/margin, en haut à gauche de la zone
       zone.classList.add('statictext');
-      // Le span est positionné en haut à gauche, sans padding ni margin
+      // On positionne le texte sans padding/margin, il suivra exactement la zone
       zone.innerHTML = `<span style="position:absolute;left:0;top:0;padding:0;margin:0;line-height:1;font-size:15px;font-weight:bold;color:#338DFF;box-sizing:border-box;">${f.value}</span>`;
     } else if (f.type === 'signature') {
       zone.textContent = 'Signature';
@@ -124,6 +142,7 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
   });
 });
 
+// Le reste du code JS n'est pas modifié : il ne concerne pas statictext !
 function handleClick(zone, type, index) {
   inputArea.innerHTML = '';
   inputArea.style.pointerEvents = 'none';
