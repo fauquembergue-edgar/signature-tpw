@@ -110,16 +110,30 @@ def apply_static_text_fields(pdf_path, fields):
             field_height = field.get('h', 40)
             html_width_px = field.get('html_width_px', 893.6)
             html_height_px = field.get('html_height_px', 1267.6)
-            apply_text(
-                pdf_path,
+            # --- Conversion identique à signature/text/checkbox :
+            pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+            x_pdf, y_pdf = html_to_pdf_coords(
                 field['x'],
                 field['y'],
-                field['value'],
+                field_height,
                 html_width_px,
                 html_height_px,
-                field_height=field_height,
-                page_num=page_num
+                pdf_width,
+                pdf_height
             )
+            # Appelle apply_text avec les coordonnées déjà converties
+            font_size = 14  # Doit matcher apply_text
+            y_pdf += field_height - font_size  # Pour aligner la baseline comme apply_text
+            import io
+            from reportlab.pdfgen import canvas as pdfcanvas
+            packet = io.BytesIO()
+            can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+            can.setFont("Helvetica", font_size)
+            can.setFillColorRGB(0, 0, 0)
+            can.drawString(x_pdf, y_pdf, field['value'])
+            can.save()
+            packet.seek(0)
+            merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
             
 
 @app.route('/')
