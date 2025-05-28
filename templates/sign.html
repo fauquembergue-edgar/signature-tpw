@@ -48,219 +48,35 @@
   <button id="submit-btn">Valider et envoyer</button>
 
 <script>
-const sessionId = "{{ session_id }}";
-const step = {{ step }};
-const signEmail = "{{ email }}";
-const fields = {{ fields_all | tojson }};
-const inputArea = document.getElementById('input-area');
-const submitBtn = document.getElementById('submit-btn');
-let completed = fields.map(f => f.signed);
+  const container = document.getElementById('pdf-container');
+  const rect      = container.getBoundingClientRect();
+  const htmlW     = rect.width, htmlH = rect.height;
+  const pdfPW     = 612, pdfPH = 792;
+  const scaleX    = pdfPW  / htmlW;
+  const scaleY    = pdfPH  / htmlH;
 
-const scale = 1.5;
-const canvas = document.getElementById('pdf-canvas');
-const ctx = canvas.getContext('2d');
-const container = document.getElementById('pdf-container');
-
-// Affichage du PDF et des zones
-pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
-  pdf.getPage(1).then(page => {
-    const viewport = page.getViewport({ scale });
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    return page.render({ canvasContext: ctx, viewport }).promise;
-  })
-).then(() => {
-  fields.forEach((f, index) => {
-    const zone = document.createElement('div');
-    zone.className = 'zone';
-    if (f.email !== signEmail) zone.classList.add('locked');
-    zone.style.left        = `${f.x * scale}px`;
-    zone.style.top         = `${f.y * scale}px`;
-    zone.style.width       = `${f.w * scale}px`;
-    zone.style.height      = `${f.h * scale}px`;
-    zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
-    zone.dataset.type      = f.type;
-    zone.dataset.index     = index;
-    zone.dataset.email     = f.email;
-
-    if (f.type === 'signature') {
-      zone.textContent = 'Signature';
-    } else if (f.type === 'text') {
-      zone.textContent = 'Texte';
-    } else if (f.type === 'checkbox') {
-      zone.textContent = '☐';
-    }
-
-    container.appendChild(zone);
-
-    // Seulement le signataire peut cliquer
-    if (f.email === signEmail) {
-      zone.addEventListener('click', () => handleClick(zone, f.type, index));
-    }
-  });
-});
-
-function handleClick(zone, type, index) {
-  inputArea.innerHTML = '';
-  // On remet input-area non clickable par défaut
-  inputArea.style.pointerEvents = 'none';
-
-  if (type === 'text') {
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = 'Votre réponse';
-    const submit = document.createElement('button');
-    submit.textContent = 'Valider';
-    submit.onclick = () => {
-      fetch('/fill-field', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          step: step,
-          field_index: index,
-          value: input.value
-        })
-      }).then(() => {
-        zone.textContent = input.value;
-        zone.style.border = '2px solid green';
-        zone.classList.add('locked');
-        completed[index] = true;
-        inputArea.innerHTML = '';
-        checkCompletion();
-      });
+  container.addEventListener('click', async e => {
+    const x_px = e.clientX - rect.left;
+    const y_px = e.clientY - rect.top;
+    const payload = {
+      session_id:    '{{ session_id }}',
+      field_index:   /* à remplir */,
+      value:         /* value */,
+      x_px,
+      y_px,
+      html_height_px: htmlH,
+      scale_x:       scaleX,
+      scale_y:       scaleY
     };
-    inputArea.appendChild(input);
-    inputArea.appendChild(submit);
-    // on veut que ces éléments soient cliquables
-    inputArea.style.pointerEvents = 'auto';
-    input.style.pointerEvents = 'auto';
-    submit.style.pointerEvents = 'auto';
-  }
-  else if (type === 'signature') {
-    // votre code existant pour signature (fichier ou dessin)…
-    inputArea.style.pointerEvents = 'auto';
-    inputArea.innerHTML = `
-      <p>Signature :</p>
-      <input type="file" id="sigFile" accept="image/png" style="pointer-events:auto;">
-      <button id="sigFileBtn" style="pointer-events:auto;">Valider image</button><br><br>
-      <canvas id="sigCanvas" width="300" height="100"></canvas><br>
-      <button id="sigDrawBtn" style="pointer-events:auto;">Valider dessin</button>
-    `;
-    // Gestion des événements…
-    document.getElementById('sigFileBtn').onclick = () => sendSigFile(index);
-    document.getElementById('sigDrawBtn').onclick = () => sendSigDraw(index);
-    initSigCanvas();
-  }
-  else if (type === 'checkbox') {
-    // Rendre input-area cliquable
-    inputArea.style.pointerEvents = 'auto';
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.style.pointerEvents = 'auto';
-
-    const submit = document.createElement('button');
-    submit.textContent = 'Valider';
-    submit.style.pointerEvents = 'auto';
-    submit.onclick = () => {
-      fetch('/fill-field', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          step: step,
-          field_index: index,
-          value: checkbox.checked
-        })
-      }).then(() => {
-        // Mise à jour visuelle
-        zone.textContent = checkbox.checked ? '☑' : '☐';
-        zone.style.border = '2px solid green';
-        zone.classList.add('locked');
-        completed[index] = true;
-        inputArea.innerHTML = '';
-        checkCompletion();
-      });
-    };
-
-    inputArea.appendChild(checkbox);
-    inputArea.appendChild(submit);
-  }
-}
-
-function initSigCanvas() {
-  const canvas = document.getElementById('sigCanvas');
-  const ctx = canvas.getContext('2d');
-  let drawing = false;
-  canvas.onmousedown = () => { drawing = true; ctx.beginPath(); };
-  canvas.onmouseup = () => { drawing = false; };
-  canvas.onmousemove = e => {
-    if (!drawing) return;
-    const rect = canvas.getBoundingClientRect();
-    ctx.lineWidth = 2;
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-    ctx.stroke();
-  };
-}
-
-function sendSigFile(index) {
-  const file = document.getElementById('sigFile').files[0];
-  const reader = new FileReader();
-  reader.onload = () => {
-    fetch('/fill-field', {
+    const resp = await fetch('/fill-field', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_id: sessionId,
-        step: step,
-        field_index: index,
-        value: reader.result
-      })
-    }).then(() => updateZone(index));
-  };
-  if (file) reader.readAsDataURL(file);
-}
-
-function sendSigDraw(index) {
-  const canvas = document.getElementById('sigCanvas');
-  const dataURL = canvas.toDataURL('image/png');
-  fetch('/fill-field', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_id: sessionId,
-      step: step,
-      field_index: index,
-      value: dataURL
-    })
-  }).then(() => updateZone(index));
-}
-
-function updateZone(index) {
-  const zone = document.querySelector(`.zone[data-index='${index}']`);
-  zone.textContent = '✅';
-  zone.style.border = '2px solid green';
-  zone.classList.add('locked');
-  completed[index] = true;
-  checkCompletion();
-}
-
-function checkCompletion() {
-  const mustSign = fields.filter(f => f.email === signEmail);
-  const allDone = mustSign.every((f, i) => completed[ fields.indexOf(f) ]);
-  if (allDone) submitBtn.style.display = 'inline-block';
-}
-
-submitBtn.onclick = () => {
-  fetch('/finalise-signature', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId })
-  }).then(() => {
-    alert("Signature finalisée. Vous pouvez fermer cette page.");
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if ((await resp.json()).status === 'ok') {
+      location.reload();
+    }
   });
-};
 </script>
 </body>
 </html>
