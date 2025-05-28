@@ -59,10 +59,12 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
 
 def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_height=40, page_num=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    font_size = 14
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
+    y_pdf += field_height - font_size  # Remonte la base du texte vers le haut de la zone
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    can.setFont("Helvetica", 14)
+    can.setFont("Helvetica", font_size)
     can.setFillColorRGB(0, 0, 0)
     can.drawString(x_pdf, y_pdf, text)
     can.save()
