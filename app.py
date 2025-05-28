@@ -34,11 +34,11 @@ def get_pdf_page_size(pdf_path, page_num=0):
     return width, height
 
 def html_to_pdf_coords(x_html, y_html, h_zone, html_w, html_h, pdf_w, pdf_h):
-    # Produit en croix pour conversion HTML->PDF
+    # Produit en croix pour conversion HTML->PDF (origine en haut à gauche HTML, bas à gauche PDF)
     scale_x = pdf_w / html_w
     scale_y = pdf_h / html_h
     x_pdf = x_html * scale_x
-    y_pdf = (html_h - y_html - h_zone) * scale_y
+    y_pdf = (html_h - y_html) * scale_y
     print(f"[COORD] HTML({x_html},{y_html}) h={h_zone} -> PDF({x_pdf:.2f},{y_pdf:.2f})")
     return x_pdf, y_pdf
 
@@ -71,9 +71,9 @@ def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_
 
 def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    width, height = 100, field_height
+    width, height = 100, field_height  # adapte width à ta logique si besoin
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
-    x_pdf -= width / 2  # centrer la signature sur la zone
+    # NE PAS CENTRER, placer exactement comme sur le HTML
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",", 1)[1]
     image_bytes = base64.b64decode(sig_data)
@@ -92,7 +92,7 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
 def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
-    x_pdf -= size / 2
+    # NE PAS CENTRER, placer exactement comme sur le HTML
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.rect(x_pdf, y_pdf, size, size)
