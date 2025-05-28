@@ -122,36 +122,58 @@ def fill_field():
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
 
-    # récupération des paramètres de conversion
-    x_px = data['x_px']
-    y_px = data['y_px']
-    html_height_px = data['html_height_px']
-    scale_x = data['scale_x']
-    scale_y = data['scale_y']
+    # Determine if clicked coords provided (new integration)
+    if 'x_px' in data and 'y_px' in data and 'scale_x' in data and 'scale_y' in data and 'html_height_px' in data:
+        x_px = data['x_px']
+        y_px = data['y_px']
+        html_height_px = data['html_height_px']
+        scale_x = data['scale_x']
+        scale_y = data['scale_y']
 
-    if field['type'] == 'signature':
-        new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
-        new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_path,
-                        field['value'],
-                        new_pdf_path,
-                        x_px, y_px,
-                        html_height_px,
-                        scale_x, scale_y)
-        session_data['pdf'] = new_pdf_name
-    elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path,
+        if field['type'] == 'signature':
+            new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
+            new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
+            apply_signature(pdf_path,
+                            field['value'],
+                            new_pdf_path,
+                            x_px, y_px,
+                            html_height_px,
+                            scale_x, scale_y)
+            session_data['pdf'] = new_pdf_name
+        elif field['type'] == 'checkbox':
+            apply_checkbox(pdf_path,
+                           x_px, y_px,
+                           data['value'] in ['true','on','1'],
+                           html_height_px,
+                           scale_x, scale_y)
+        else:
+            apply_text(pdf_path,
                        x_px, y_px,
-                       data['value'] in ['true','on','1'],
+                       data['value'],
                        html_height_px,
                        scale_x, scale_y)
     else:
-        apply_text(pdf_path,
-                   x_px, y_px,
-                   data['value'],
-                   html_height_px,
-                   scale_x, scale_y)
+        # Fallback to legacy coordinates
+        x = field.get('x')
+        y = field.get('y')
+        if field['type'] == 'signature':
+            new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
+            new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
+            apply_signature(pdf_path,
+                            field['value'],
+                            new_pdf_path,
+                            x, y)
+            session_data['pdf'] = new_pdf_name
+        elif field['type'] == 'checkbox':
+            apply_checkbox(pdf_path,
+                           x, y,
+                           data['value'] in ['true','on','1'])
+        else:
+            apply_text(pdf_path,
+                       x, y,
+                       data['value'])
 
+    # Save updated session data
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
@@ -274,55 +296,96 @@ def save_signature_image(data_url, session_id, index):
         f.write(sig_data)
     return sig_path
 
+# email sending unchanged
+
 def send_email(session_id, step):
-    with open(os.path.join(SESSION_FOLDER, f"{session_id}.json")) as f:
+    """
+    Envoie un email au signataire de l'étape `step` pour lui demander de signer.
+    """
+    # Charger les données de session
+    session_file = os.path.join(SESSION_FOLDER, f"{session_id}.json")
+    with open(session_file) as f:
         data = json.load(f)
-    recipient = next((f['email'] for f in data['fields'] if f.get('step', 0) == step), None)
+    # Trouver le destinataire de cette étape
+    recipient = next((fld['email'] for fld in data['fields'] if fld.get('step', 0) == step), None)
     if not recipient:
         return
+    # Construire l'URL de signature
     app_url = os.getenv('APP_URL', 'http://localhost:5000')
+    link = f"{app_url}/sign/{session_id}/{step}"
+    # Préparer le message
     msg = EmailMessage()
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    msg.set_content(f"{data.get('message', 'Bonjour, veuillez signer ici :')}\n{app_url}/sign/{session_id}/{step}")
+    body = data.get('email_message') or f"Bonjour, veuillez signer ici : {link}"
+    # Si data['email_message'] ne contient pas déjà le lien, on l'ajoute
+    if '{link}' not in body:
+        body = body + "
+" + link
+    msg.set_content(body)
+    # Envoi via SMTP
     try:
-        with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
+        smtp_server = os.getenv('SMTP_SERVER')
+        smtp_port = int(os.getenv('SMTP_PORT', 587))
+        smtp_user = os.getenv('SMTP_USER')
+        smtp_pass = os.getenv('SMTP_PASS')
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.starttls()
-            server.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASS'))
+            server.login(smtp_user, smtp_pass)
             server.send_message(msg)
     except Exception as e:
+        # Logger l'erreur
         with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] email vers {recipient} : {e}\n")
+            log.write(f"[ERROR] envoi email vers {recipient} étape {step} : {e}
+")
+
 
 def send_pdf_to_all(session_data):
-    pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-
+    """
+    Envoie le PDF final signé à tous les destinataires uniques.
+    """
+    pdf_name = session_data.get('pdf')
+    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_name)
     if not os.path.isfile(pdf_path):
         return
-
+    # Lire le contenu du PDF
     with open(pdf_path, 'rb') as f:
         content = f.read()
-
     sent = set()
-    for f in session_data['fields']:
-        recipient = f['email']
-        if recipient and recipient not in sent:
-            sent.add(recipient)
-            msg = EmailMessage()
-            msg['Subject'] = 'Document signé final'
-            msg['From'] = os.getenv('SMTP_USER')
-            msg['To'] = recipient
-            msg.set_content('Voici le PDF final signé.')
-            msg.add_attachment(content, maintype='application', subtype='pdf', filename='document_final.pdf')
-            try:
-                with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
-                    server.starttls()
-                    server.login(os.getenv('SMTP_USER'), os.getenv('SMTP_PASS'))
-                    server.send_message(msg)
-            except Exception as e:
-                with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                    log.write(f"[ERROR] PDF à {recipient} : {e}\n")
+    # Pour chaque champ, envoyer le PDF une fois par destinataire
+    for fld in session_data['fields']:
+        recipient = fld.get('email')
+        if not recipient or recipient in sent:
+            continue
+        sent.add(recipient)
+        msg = EmailMessage()
+        msg['Subject'] = 'Document signé final'
+        msg['From'] = os.getenv('SMTP_USER')
+        msg['To'] = recipient
+        msg.set_content('Voici le PDF final signé.')
+        msg.add_attachment(content,
+                           maintype='application',
+                           subtype='pdf',
+                           filename='document_final.pdf')
+        try:
+            smtp_server = os.getenv('SMTP_SERVER')
+            smtp_port = int(os.getenv('SMTP_PORT', 587))
+            smtp_user = os.getenv('SMTP_USER')
+            smtp_pass = os.getenv('SMTP_PASS')
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+        except Exception as e:
+            with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
+                log.write(f"[ERROR] envoi PDF final à {recipient} : {e}
+")
+
+
+def send_pdf_to_all(session_data):
+    # ... existing implementation ...
+    pass
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
