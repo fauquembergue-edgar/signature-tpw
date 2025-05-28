@@ -116,38 +116,23 @@ def fill_field():
     with open(session_path) as f:
         session_data = json.load(f)
 
-    # Update field
     field = session_data['fields'][data['field_index']]
     field['value'] = data['value']
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
 
-    # Coordinates and scales from client
-    x_px = data['x_px']
-    y_px = data['y_px']
-    html_h = data['html_height_px']
-    scale_x = data['scale_x']
-    scale_y = data['scale_y']
-
-    # Dispatch by type
+    # Apply based on field type using adapted functions (no offsets)
     if field['type'] == 'signature':
-        new_pdf = f"signed_{uuid.uuid4()}.pdf"
-        new_path = os.path.join(UPLOAD_FOLDER, new_pdf)
-        apply_signature(pdf_path, data['value'], new_path,
-                        x_px, y_px, html_h, scale_x, scale_y)
-        session_data['pdf'] = new_pdf
+        new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
+        new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
+        apply_signature(pdf_path, field['value'], new_pdf_path, field['x'], field['y'])
+        session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path,
-                       x_px, y_px,
-                       data['value'] in ['true','on','1'],
-                       html_h, scale_x, scale_y)
+        apply_checkbox(pdf_path, field['x'], field['y'], data['value'] in ['true', 'on', '1'])
     else:
-        apply_text(pdf_path,
-                   x_px, y_px,
-                   data['value'],
-                   html_h, scale_x, scale_y)
+        apply_text(pdf_path, field['x'], field['y'], data['value'])
 
-    # Save session
+    # Save updated session
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
 
@@ -189,15 +174,21 @@ def status(session_id):
 
 # --- Rendering functions ---
 
-def apply_text(pdf_path, x_px, y_px, text, html_h, scale_x, scale_y):
+def apply_text(pdf_path, x_px, y_px, text, html_height_px, scale_x, scale_y):
+    """
+    x_px, y_px        : position en pixels dans le conteneur HTML
+    html_height_px    : hauteur du conteneur HTML en px
+    scale_x           : pdf_width_pts  / html_width_px
+    scale_y           : pdf_height_pts / html_height_px
+    """
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
 
-    # Linear conversion
+    # conversion linéaire
     x_pdf = x_px * scale_x
-    y_pdf = (html_h - y_px) * scale_y
+    y_pdf = (html_height_px - y_px) * scale_y
 
     can.setFont("Helvetica", 12)
     can.drawString(x_pdf, y_pdf, text)
@@ -205,6 +196,7 @@ def apply_text(pdf_path, x_px, y_px, text, html_h, scale_x, scale_y):
 
     packet.seek(0)
     overlay = PdfReader(packet)
+    # n’appliquer que sur la page 0
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
@@ -214,12 +206,17 @@ def apply_text(pdf_path, x_px, y_px, text, html_h, scale_x, scale_y):
         writer.write(f)
 
 
-def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_h, scale_x, scale_y):
+def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_height_px, scale_x, scale_y):
+    """
+    même principe, centrer la signature (100×40 pts) sur le point cliqué
+    """
     width, height = 100, 40
 
+    # conversion linéaire
     x_pdf = x_px * scale_x - width/2
-    y_pdf = (html_h - y_px) * scale_y - height/2
+    y_pdf = (html_height_px - y_px) * scale_y - height/2
 
+    # décodage du PNG Base64
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",", 1)[1]
     image_bytes = base64.b64decode(sig_data)
@@ -231,7 +228,10 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_h, scale_x
     image.save(img_io, format="PNG")
     img_io.seek(0)
 
-    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
+    can.drawImage(ImageReader(img_io),
+                  x_pdf, y_pdf,
+                  width=width, height=height,
+                  mask='auto')
     can.save()
 
     packet.seek(0)
@@ -248,20 +248,24 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_h, scale_x
         writer.write(f)
 
 
-def apply_checkbox(pdf_path, x_px, y_px, checked, html_h, scale_x, scale_y, size=15):
+def apply_checkbox(pdf_path, x_px, y_px, checked, html_height_px, scale_x, scale_y, size=15):
+    """
+    Dessine une case de côté 'size' pts, cochée si checked=True.
+    """
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
 
+    # conversion linéaire et centrage
     x_pdf = x_px * scale_x - size/2
-    y_pdf = (html_h - y_px) * scale_y - size/2
+    y_pdf = (html_height_px - y_px) * scale_y - size/2
 
     can.rect(x_pdf, y_pdf, size, size)
     if checked:
         can.setLineWidth(2)
         can.line(x_pdf, y_pdf, x_pdf+size, y_pdf+size)
-        can.line(x_pdf, y_px+size, x_px+size, y_pdf)
+        can.line(x_pdf, y_pdf+size, x_pdf+size, y_pdf)
     can.save()
 
     packet.seek(0)
@@ -272,6 +276,8 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_h, scale_x, scale_y, size
         writer.add_page(page)
     with open(pdf_path, 'wb') as f:
         writer.write(f)
+
+
 
 def save_signature_image(data_url, session_id, index):
     if data_url.startswith("data:image/png;base64,"):
