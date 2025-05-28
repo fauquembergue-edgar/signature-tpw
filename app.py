@@ -330,8 +330,7 @@ def send_email(session_id, step):
             server.send_message(msg)
     except Exception as e:
         with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] envoi email vers {recipient} étape {step} : {e}
-")
+            log.write(f"[ERROR] envoi email vers {recipient} étape {step} : {e}")
 
 
 def send_pdf_to_all(session_data):
