@@ -61,7 +61,7 @@ def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     font_size = 14
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
-    y_pdf += field_height - font_size  # Remonte la base du texte vers le haut de la zone
+    y_pdf += field_height - font_size  # Remonter baseline du texte
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.setFont("Helvetica", font_size)
@@ -74,8 +74,8 @@ def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_
 def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     width, height = 100, field_height  # adapte width à ta logique si besoin
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
-    # NE PAS CENTRER, placer exactement comme sur le HTML
+    # Pour image, -h_zone déjà dans html_to_pdf_coords, donc rien à ajouter
+    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, height, html_width_px, html_height_px, pdf_width, pdf_height)
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",", 1)[1]
     image_bytes = base64.b64decode(sig_data)
@@ -93,8 +93,8 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
 
 def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
-    # NE PAS CENTRER, placer exactement comme sur le HTML
+    # Pour checkbox, -size déjà dans html_to_pdf_coords
+    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, size, html_width_px, html_height_px, pdf_width, pdf_height)
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.rect(x_pdf, y_pdf, size, size)
