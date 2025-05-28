@@ -282,4 +282,21 @@ submitBtn.onclick = () => {
 };
 </script>
 </body>
+
+<script>
+const scale = 1.5;
+const canvas = document.getElementById('pdf-canvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('pdf-container');
+
+pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
+  pdf.getPage(1).then(page => {
+    const viewport = page.getViewport({ scale });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    console.log("Canvas size:", canvas.width, canvas.height); // DEBUG
+    return page.render({ canvasContext: ctx, viewport }).promise;
+  })
+)
+</script>
 </html>
