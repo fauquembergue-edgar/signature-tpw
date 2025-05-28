@@ -25,30 +25,22 @@ os.makedirs(SESSION_FOLDER, exist_ok=True)
 os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
 os.makedirs(LOG_FOLDER, exist_ok=True)
 
-# PDF size in points (from your PDF): 803 x 1132
-# Canvas size in px (from your HTML): 893.6 x 1267.6
-
-PDF_WIDTH = 803
-PDF_HEIGHT = 1132
-HTML_WIDTH = 893.6
-HTML_HEIGHT = 1267.6
-
-def get_pdf_coords(x_px, y_px, field_height):
-    scale_x = PDF_WIDTH / HTML_WIDTH    # ≈ 0.8985
-    scale_y = PDF_HEIGHT / HTML_HEIGHT  # ≈ 0.8933
-    x_pdf = x_px * scale_x
-    y_pdf = (HTML_HEIGHT - y_px - field_height) * scale_y
-    # DEBUG
-    print(f"[COORD] HTML({x_px}, {y_px}) -> PDF({x_pdf}, {y_pdf}) with h={field_height}")
-    return x_pdf, y_pdf
-
 def get_pdf_page_size(pdf_path, page_num=0):
     reader = PdfReader(pdf_path)
     mediabox = reader.pages[page_num].mediabox
     width = float(mediabox.width)
     height = float(mediabox.height)
-    print("PDF Page Size (read):", width, height)  # DEBUG
+    print("PDF Page Size (points):", width, height)
     return width, height
+
+def html_to_pdf_coords(x_html, y_html, h_zone, html_w, html_h, pdf_w, pdf_h):
+    # Produit en croix pour conversion HTML->PDF
+    scale_x = pdf_w / html_w
+    scale_y = pdf_h / html_h
+    x_pdf = x_html * scale_x
+    y_pdf = (html_h - y_html - h_zone) * scale_y
+    print(f"[COORD] HTML({x_html},{y_html}) h={h_zone} -> PDF({x_pdf:.2f},{y_pdf:.2f})")
+    return x_pdf, y_pdf
 
 def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
     reader = PdfReader(pdf_path)
@@ -65,10 +57,11 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
         with open(pdf_path, 'wb') as f:
             writer.write(f)
 
-def apply_text(pdf_path, x_px, y_px, text, field_height=40, page_num=0):
-    x_pdf, y_pdf = get_pdf_coords(x_px, y_px, field_height)
+def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_height=40, page_num=0):
+    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
     packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(PDF_WIDTH, PDF_HEIGHT))
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.setFont("Helvetica", 14)
     can.setFillColorRGB(0, 0, 0)
     can.drawString(x_pdf, y_pdf, text)
@@ -76,17 +69,18 @@ def apply_text(pdf_path, x_px, y_px, text, field_height=40, page_num=0):
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, field_height=40, page_num=0):
+def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0):
+    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     width, height = 100, field_height
-    x_pdf, y_pdf = get_pdf_coords(x_px, y_px, field_height)
-    x_pdf -= width / 2  # centrer
+    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
+    x_pdf -= width / 2  # centrer la signature sur la zone
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",", 1)[1]
     image_bytes = base64.b64decode(sig_data)
     image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
 
     packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(PDF_WIDTH, PDF_HEIGHT))
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     img_io = io.BytesIO()
     image.save(img_io, format="PNG")
     img_io.seek(0)
@@ -95,11 +89,12 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, field_height=40
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
-def apply_checkbox(pdf_path, x_px, y_px, checked, field_height=15, page_num=0, size=15):
-    x_pdf, y_pdf = get_pdf_coords(x_px, y_px, field_height)
+def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15):
+    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
     x_pdf -= size / 2
     packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(PDF_WIDTH, PDF_HEIGHT))
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.rect(x_pdf, y_pdf, size, size)
     if checked:
         can.setLineWidth(2)
@@ -215,17 +210,21 @@ def fill_field():
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
     page_num = field.get('page', 0)
     field_height = data.get('field_height', field.get('h', 40))
-    x_px = data.get('x_px', field.get('x', 0))
-    y_px = data.get('y_px', field.get('y', 0))
+    x_px = data['x_px']
+    y_px = data['y_px']
+    html_width_px = data['html_width_px']
+    html_height_px = data['html_height_px']
+
     if field['type'] == 'signature':
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_path, field['value'], new_pdf_path, x_px, y_px, field_height=field_height, page_num=page_num)
+        apply_signature(pdf_path, field['value'], new_pdf_path, x_px, y_px, html_width_px, html_height_px, field_height=field_height, page_num=page_num)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path, x_px, y_px, data['value'] in ['true','on','1', True], field_height=field_height, page_num=page_num)
+        apply_checkbox(pdf_path, x_px, y_px, data['value'] in ['true','on','1', True], html_width_px, html_height_px, field_height=field_height, page_num=page_num)
     else:
-        apply_text(pdf_path, x_px, y_px, data['value'], field_height=field_height, page_num=page_num)
+        apply_text(pdf_path, x_px, y_px, data['value'], html_width_px, html_height_px, field_height=field_height, page_num=page_num)
+
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
