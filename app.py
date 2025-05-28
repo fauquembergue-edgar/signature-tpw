@@ -20,6 +20,8 @@ UPLOAD_FOLDER = 'uploads'
 SESSION_FOLDER = 'sessions'
 TEMPLATES_FOLDER = 'templates_data'
 LOG_FOLDER = 'logs'
+
+# create folders
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(SESSION_FOLDER, exist_ok=True)
 os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
@@ -33,19 +35,19 @@ def index():
             sid = filename.replace(".json", "")
             with open(os.path.join(SESSION_FOLDER, filename)) as f:
                 data = json.load(f)
-                sessions[sid] = {
-                    "pdf": data["pdf"],
-                    "name": data.get("nom_demande", ""),
-                    "fields": data["fields"],
-                    "done": all(f.get("signed") for f in data["fields"])
-                }
+            sessions[sid] = {
+                "pdf": data["pdf"],
+                "name": data.get("nom_demande", ""),
+                "fields": data["fields"],
+                "done": all(f.get("signed") for f in data["fields"])
+            }
     templates = [f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')]
     return render_template("index.html", templates=templates, sessions=sessions)
 
 @app.route('/upload', methods=['POST'])
 def upload():
     file = request.files['pdf']
-    filename = str(uuid.uuid4()) + '.pdf'
+    filename = f"{uuid.uuid4()}.pdf"
     filepath = os.path.join(UPLOAD_FOLDER, filename)
     file.save(filepath)
     return jsonify({'filename': filename})
@@ -60,7 +62,8 @@ def save_template():
     name = data.get('name')
     if not name:
         return jsonify({'error': 'Nom de template requis'}), 400
-    with open(os.path.join(TEMPLATES_FOLDER, f"{name}.json"), 'w') as f:
+    path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
+    with open(path, 'w') as f:
         json.dump({'pdf': data['pdf'], 'fields': data['fields']}, f)
     return jsonify({'status': 'saved'})
 
@@ -78,19 +81,18 @@ def define_fields():
     message = request.form.get('email_message', '')
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
-    pdf_file = data['pdf']
     fields = data['fields']
     for i, field in enumerate(fields):
         field['signed'] = False
         field['value'] = ''
         field['step'] = i
     session_data = {
-        'pdf': pdf_file,
+        'pdf': data['pdf'],
         'fields': fields,
         'email_message': message,
         'nom_demande': nom_demande
     }
-    with open(os.path.join(SESSION_FOLDER, f'{session_id}.json'), 'w') as f:
+    with open(os.path.join(SESSION_FOLDER, f"{session_id}.json"), 'w') as f:
         json.dump(session_data, f)
     send_email(session_id, step=0)
     return render_template("notified.html", session_id=session_id)
@@ -115,27 +117,43 @@ def fill_field():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
-
     field = session_data['fields'][data['field_index']]
     field['value'] = data['value']
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
 
-    # Apply based on field type using adapted functions (no offsets)
+    # récupération des paramètres de conversion
+    x_px = data['x_px']
+    y_px = data['y_px']
+    html_height_px = data['html_height_px']
+    scale_x = data['scale_x']
+    scale_y = data['scale_y']
+
     if field['type'] == 'signature':
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_path, field['value'], new_pdf_path, field['x'], field['y'])
+        apply_signature(pdf_path,
+                        field['value'],
+                        new_pdf_path,
+                        x_px, y_px,
+                        html_height_px,
+                        scale_x, scale_y)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path, field['x'], field['y'], data['value'] in ['true', 'on', '1'])
+        apply_checkbox(pdf_path,
+                       x_px, y_px,
+                       data['value'] in ['true','on','1'],
+                       html_height_px,
+                       scale_x, scale_y)
     else:
-        apply_text(pdf_path, field['x'], field['y'], data['value'])
+        apply_text(pdf_path,
+                   x_px, y_px,
+                   data['value'],
+                   html_height_px,
+                   scale_x, scale_y)
 
-    # Save updated session
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
-
     return jsonify({'status': 'ok'})
 
 @app.route('/finalise-signature', methods=['POST'])
@@ -144,49 +162,36 @@ def finalise_signature():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
-
     all_fields = session_data['fields']
     current_step = max(f['step'] for f in all_fields if f['signed']) if any(f['signed'] for f in all_fields) else 0
-    remaining_fields_same_step = [f for f in all_fields if f['step'] == current_step and not f['signed']]
-
-    if remaining_fields_same_step:
+    remaining_same = [f for f in all_fields if f['step']==current_step and not f['signed']]
+    if remaining_same:
         return jsonify({'status': 'incomplete'})
+    remaining = [f for f in all_fields if not f['signed']]
+    if remaining:
+        next_step = min(f['step'] for f in remaining)
+        send_email(data['session_id'], next_step)
     else:
-        remaining = [f for f in all_fields if not f['signed']]
-        if remaining:
-            next_step = min(f['step'] for f in remaining)
-            send_email(data['session_id'], next_step)
-        else:
-            send_pdf_to_all(session_data)
-
-        with open(session_path, 'w') as f:
-            json.dump(session_data, f)
-
-        return jsonify({'status': 'finalised'})
+        send_pdf_to_all(session_data)
+    with open(session_path, 'w') as f:
+        json.dump(session_data, f)
+    return jsonify({'status': 'finalised'})
 
 @app.route('/session/<session_id>/status')
 def status(session_id):
     path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(path) as f:
-        session_data = json.load(f)
-    done = all(f['signed'] for f in session_data['fields'])
+        data = json.load(f)
+    done = all(f['signed'] for f in data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
-# --- Rendering functions ---
-
+# --- Rendering functions using client-side scales ---
 def apply_text(pdf_path, x_px, y_px, text, html_height_px, scale_x, scale_y):
-    """
-    x_px, y_px        : position en pixels dans le conteneur HTML
-    html_height_px    : hauteur du conteneur HTML en px
-    scale_x           : pdf_width_pts  / html_width_px
-    scale_y           : pdf_height_pts / html_height_px
-    """
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
 
-    # conversion linéaire
     x_pdf = x_px * scale_x
     y_pdf = (html_height_px - y_px) * scale_y
 
@@ -196,29 +201,21 @@ def apply_text(pdf_path, x_px, y_px, text, html_height_px, scale_x, scale_y):
 
     packet.seek(0)
     overlay = PdfReader(packet)
-    # n’appliquer que sur la page 0
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
         writer.add_page(page)
-
     with open(pdf_path, 'wb') as f:
         writer.write(f)
 
 
 def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_height_px, scale_x, scale_y):
-    """
-    même principe, centrer la signature (100×40 pts) sur le point cliqué
-    """
     width, height = 100, 40
-
-    # conversion linéaire
     x_pdf = x_px * scale_x - width/2
     y_pdf = (html_height_px - y_px) * scale_y - height/2
 
-    # décodage du PNG Base64
     if sig_data.startswith("data:image/png;base64,"):
-        sig_data = sig_data.split(",", 1)[1]
+        sig_data = sig_data.split(",",1)[1]
     image_bytes = base64.b64decode(sig_data)
     image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
 
@@ -227,37 +224,27 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_height_px,
     img_io = io.BytesIO()
     image.save(img_io, format="PNG")
     img_io.seek(0)
-
-    can.drawImage(ImageReader(img_io),
-                  x_pdf, y_pdf,
-                  width=width, height=height,
-                  mask='auto')
+    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
     can.save()
 
     packet.seek(0)
     overlay = PdfReader(packet)
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
-
     for i, page in enumerate(reader.pages):
         if i == 0:
             page.merge_page(overlay.pages[0])
         writer.add_page(page)
-
     with open(output_path, 'wb') as f:
         writer.write(f)
 
 
 def apply_checkbox(pdf_path, x_px, y_px, checked, html_height_px, scale_x, scale_y, size=15):
-    """
-    Dessine une case de côté 'size' pts, cochée si checked=True.
-    """
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=letter)
 
-    # conversion linéaire et centrage
     x_pdf = x_px * scale_x - size/2
     y_pdf = (html_height_px - y_px) * scale_y - size/2
 
@@ -278,10 +265,9 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_height_px, scale_x, scale
         writer.write(f)
 
 
-
 def save_signature_image(data_url, session_id, index):
     if data_url.startswith("data:image/png;base64,"):
-        data_url = data_url.replace("data:image/png;base64,", "")
+        data_url = data_url.split(",",1)[1]
     sig_data = base64.b64decode(data_url)
     sig_path = os.path.join(UPLOAD_FOLDER, f"{session_id}_sig_{index}.png")
     with open(sig_path, 'wb') as f:
