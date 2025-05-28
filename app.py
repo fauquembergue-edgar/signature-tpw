@@ -296,7 +296,7 @@ def save_signature_image(data_url, session_id, index):
         f.write(sig_data)
     return sig_path
 
-# --- Email and PDF Sending Functions ---
+# --- Email sending function ---
 
 def send_email(session_id, step):
     """
@@ -314,11 +314,13 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
+    # message personnalisé ou par défaut
     body = data.get('email_message') or f"Bonjour, veuillez signer ici : {link}"
-    # Ajouter le lien si pas présent
     if link not in body:
-        body = body + " " + link
+        body = f"{body}
+{link}"
     msg.set_content(body)
+    # envoi SMTP
     try:
         smtp_server = os.getenv('SMTP_SERVER')
         smtp_port = int(os.getenv('SMTP_PORT', 587))
@@ -329,9 +331,12 @@ def send_email(session_id, step):
             server.login(smtp_user, smtp_pass)
             server.send_message(msg)
     except Exception as e:
-            with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                log.write(f"[ERROR] envoi PDF final à {recipient} : {e}
-"):
+        with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
+            log.write(f"[ERROR] send_email to {recipient} at step {step}: {e}\n")
+
+# --- PDF final sending to all ---
+
+def send_pdf_to_all(session_data):
     """
     Envoie le PDF final signé à tous les destinataires uniques.
     """
@@ -367,7 +372,7 @@ def send_email(session_id, step):
                 server.send_message(msg)
         except Exception as e:
             with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                log.write(f"[ERROR] envoi PDF final à {recipient} : {e}\n")
+                log.write(f"[ERROR] send_pdf_to_all to {recipient}: {e}\n")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
