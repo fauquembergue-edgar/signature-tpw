@@ -120,6 +120,7 @@ def apply_static_text_fields(pdf_path, fields):
                 field_height=field_height,
                 page_num=page_num
             )
+            
 
 @app.route('/')
 def index():
