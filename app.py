@@ -176,7 +176,7 @@ def status(session_id):
 
 def apply_text(pdf_path, x, y, text, scale=1.5):
     html_width, html_height = 852, 512
-    offset_x, offset_y = 40, 95
+    offset_x, offset_y = 30, 88
     pdf_width, pdf_height = letter
     x_pdf = (x) * (pdf_width / html_width)+ offset_x
     y_pdf = pdf_height - ((y) * (pdf_height / html_height)) + offset_y
@@ -204,7 +204,7 @@ def apply_text(pdf_path, x, y, text, scale=1.5):
 def apply_signature(pdf_path, sig_data, output_path, x, y, scale=1.5):
     width, height = 100, 40
     html_width, html_height = 852, 512
-    offset_x, offset_y = 70, 140
+    offset_x, offset_y = 70, 160
     pdf_width, pdf_height = letter
     x_pdf = (x) * (pdf_width / html_width) + offset_x
     y_pdf = pdf_height - ((y) * (pdf_height / html_height)) - (height / 2) + offset_y
@@ -244,7 +244,7 @@ def apply_checkbox(pdf_path, x, y, checked, scale=1.5):
     scale est conservé pour compatibilité, mais non utilisé.
     """
     html_width, html_height = 852, 512
-    offset_x, offset_y = 140, 95
+    offset_x, offset_y = 140, 110
     pdf_width, pdf_height = letter
 
     # Taille de la case
