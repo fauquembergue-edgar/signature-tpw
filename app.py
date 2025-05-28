@@ -103,7 +103,6 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-# --- AJOUT traitement des zones statictext AVANT création session signature
 def apply_static_text_fields(pdf_path, fields):
     for field in fields:
         if field["type"] == "statictext":
@@ -177,9 +176,7 @@ def define_fields():
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
     fields = data['fields']
-    # On suppose que les dimensions du canvas sont fixes ou transmises, sinon à adapter
-    html_width_px = data.get('html_width_px', 893.6)
-    html_height_px = data.get('html_height_px', 1267.6)
+    # Pas besoin d'envoyer html_width_px/html_height_px ici, chaque champ le porte déjà.
     for i, field in enumerate(fields):
         field['signed'] = False
         field['step'] = i
@@ -191,9 +188,8 @@ def define_fields():
                 field['h'] = 15
             else:
                 field['h'] = 40
-    # Appliquer les textes statiques sur le PDF AVANT session
     pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
-    apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px)
+    apply_static_text_fields(pdf_path, fields)
     session_data = {
         'pdf': data['pdf'],
         'fields': fields,
