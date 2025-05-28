@@ -181,13 +181,17 @@ def sign(session_id, step):
     with open(path) as f:
         session_data = json.load(f)
     fields = [f for f in session_data['fields'] if f.get('step', 0) == step]
-    return render_template('sign.html',
-                           fields_json=fields,
-                           pdf=session_data['pdf'],
-                           session_id=session_id,
-                           step=step,
-                           email=fields[0]['email'],
-                           fields_all=session_data['fields'])
+    # DEBUG PDF
+    print("Debug PDF for session:", session_id, "->", session_data['pdf'], os.path.isfile(os.path.join(UPLOAD_FOLDER, session_data['pdf'])))
+    return render_template(
+        'sign.html',
+        fields_json=fields,
+        pdf=session_data['pdf'],
+        session_id=session_id,
+        step=step,
+        email=fields[0]['email'],
+        fields_all=session_data['fields']
+    )
 
 @app.route('/fill-field', methods=['POST'])
 def fill_field():
