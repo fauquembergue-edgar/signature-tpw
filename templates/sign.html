@@ -27,7 +27,7 @@
     .legend-box { display: inline-block; width: 12px; height: 12px; margin-right: 5px; }
     #input-area {
       margin-top: 20px;
-      pointer-events: none;    /* désactive par défaut */
+      pointer-events: none;
     }
     #submit-btn { display: none; margin-top: 20px; padding: 10px 20px; }
   </style>
@@ -45,6 +45,10 @@
   </div>
 
   <div id="input-area"></div>
+  <div style="margin-top:20px;">
+    <label for="final-message"><strong>Message à joindre (optionnel) :</strong></label><br>
+    <textarea id="final-message" rows="3" cols="50" placeholder="Un commentaire pour tous les destinataires…"></textarea>
+  </div>
   <button id="submit-btn">Valider et envoyer</button>
 
 <script>
@@ -76,8 +80,8 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
     if (f.email !== signEmail) zone.classList.add('locked');
     zone.style.left        = `${f.x * scale}px`;
     zone.style.top         = `${f.y * scale}px`;
-    zone.style.width       = `${f.w * scale}px`;
-    zone.style.height      = `${f.h * scale}px`;
+    zone.style.width       = `${f.w * scale || 100}px`;
+    zone.style.height      = `${f.h * scale || 40}px`;
     zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
     zone.dataset.type      = f.type;
     zone.dataset.index     = index;
@@ -102,7 +106,6 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
 
 function handleClick(zone, type, index) {
   inputArea.innerHTML = '';
-  // On remet input-area non clickable par défaut
   inputArea.style.pointerEvents = 'none';
 
   if (type === 'text') {
@@ -132,13 +135,11 @@ function handleClick(zone, type, index) {
     };
     inputArea.appendChild(input);
     inputArea.appendChild(submit);
-    // on veut que ces éléments soient cliquables
     inputArea.style.pointerEvents = 'auto';
     input.style.pointerEvents = 'auto';
     submit.style.pointerEvents = 'auto';
   }
   else if (type === 'signature') {
-    // votre code existant pour signature (fichier ou dessin)…
     inputArea.style.pointerEvents = 'auto';
     inputArea.innerHTML = `
       <p>Signature :</p>
@@ -147,13 +148,11 @@ function handleClick(zone, type, index) {
       <canvas id="sigCanvas" width="300" height="100"></canvas><br>
       <button id="sigDrawBtn" style="pointer-events:auto;">Valider dessin</button>
     `;
-    // Gestion des événements…
     document.getElementById('sigFileBtn').onclick = () => sendSigFile(index);
     document.getElementById('sigDrawBtn').onclick = () => sendSigDraw(index);
     initSigCanvas();
   }
   else if (type === 'checkbox') {
-    // Rendre input-area cliquable
     inputArea.style.pointerEvents = 'auto';
 
     const checkbox = document.createElement('input');
@@ -174,7 +173,6 @@ function handleClick(zone, type, index) {
           value: checkbox.checked
         })
       }).then(() => {
-        // Mise à jour visuelle
         zone.textContent = checkbox.checked ? '☑' : '☐';
         zone.style.border = '2px solid green';
         zone.classList.add('locked');
@@ -253,10 +251,11 @@ function checkCompletion() {
 }
 
 submitBtn.onclick = () => {
+  const finalMessage = document.getElementById('final-message').value;
   fetch('/finalise-signature', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId })
+    body: JSON.stringify({ session_id: sessionId, message_final: finalMessage })
   }).then(() => {
     alert("Signature finalisée. Vous pouvez fermer cette page.");
   });
