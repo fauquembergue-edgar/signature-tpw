@@ -7,7 +7,6 @@ import base64
 from email.message import EmailMessage
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas as pdfcanvas
-from reportlab.lib.pagesizes import letter
 from dotenv import load_dotenv
 import io
 from PIL import Image
@@ -21,11 +20,89 @@ SESSION_FOLDER = 'sessions'
 TEMPLATES_FOLDER = 'templates_data'
 LOG_FOLDER = 'logs'
 
-# create folders
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(SESSION_FOLDER, exist_ok=True)
 os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
 os.makedirs(LOG_FOLDER, exist_ok=True)
+
+def get_pdf_page_size(pdf_path, page_num=0):
+    reader = PdfReader(pdf_path)
+    mediabox = reader.pages[page_num].mediabox
+    width = float(mediabox.width)
+    height = float(mediabox.height)
+    return width, height
+
+def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
+    overlay_reader = PdfReader(overlay_pdf)
+    for i, page in enumerate(reader.pages):
+        if i == page_num:
+            page.merge_page(overlay_reader.pages[0])
+        writer.add_page(page)
+    if output_path:
+        with open(output_path, 'wb') as f:
+            writer.write(f)
+    else:
+        with open(pdf_path, 'wb') as f:
+            writer.write(f)
+
+def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, page_num=0):
+    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    scale_x = pdf_width / html_width_px
+    scale_y = pdf_height / html_height_px
+    x_pdf = x_px * scale_x
+    y_pdf = (html_height_px - y_px) * scale_y
+
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+    can.setFont("Helvetica", 14)
+    can.setFillColorRGB(0, 0, 0)
+    can.drawString(x_pdf, y_pdf, text)
+    can.save()
+    packet.seek(0)
+    merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
+
+def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, page_num=0):
+    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    scale_x = pdf_width / html_width_px
+    scale_y = pdf_height / html_height_px
+    width, height = 100, 40
+    x_pdf = x_px * scale_x - width / 2
+    y_pdf = (html_height_px - y_px) * scale_y - height / 2
+
+    if sig_data.startswith("data:image/png;base64,"):
+        sig_data = sig_data.split(",", 1)[1]
+    image_bytes = base64.b64decode(sig_data)
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+    img_io = io.BytesIO()
+    image.save(img_io, format="PNG")
+    img_io.seek(0)
+    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
+    can.save()
+    packet.seek(0)
+    merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
+
+def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, page_num=0, size=15):
+    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    scale_x = pdf_width / html_width_px
+    scale_y = pdf_height / html_height_px
+    x_pdf = x_px * scale_x - size / 2
+    y_pdf = (html_height_px - y_px) * scale_y - size / 2
+
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+    can.rect(x_pdf, y_pdf, size, size)
+    if checked:
+        can.setLineWidth(2)
+        can.line(x_pdf, y_pdf, x_pdf + size, y_pdf + size)
+        can.line(x_pdf, y_pdf + size, x_pdf + size, y_pdf)
+    can.save()
+    packet.seek(0)
+    merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
 @app.route('/')
 def index():
@@ -86,6 +163,7 @@ def define_fields():
         field['signed'] = False
         field['value'] = ''
         field['step'] = i
+        field['page'] = field.get('page', 0)
     session_data = {
         'pdf': data['pdf'],
         'fields': fields,
@@ -121,66 +199,21 @@ def fill_field():
     field['value'] = data['value']
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-
-    # Determine if clicked coords provided (new integration)
-    if 'x_px' in data and 'y_px' in data and 'scale_x' in data and 'scale_y' in data and 'html_height_px' in data:
+    page_num = field.get('page', 0)
+    if all(k in data for k in ("x_px", "y_px", "html_width_px", "html_height_px")):
         x_px = data['x_px']
         y_px = data['y_px']
+        html_width_px = data['html_width_px']
         html_height_px = data['html_height_px']
-        scale_x = data['scale_x']
-        scale_y = data['scale_y']
-        html_width_px = data.get('html_width_px', None)
-
         if field['type'] == 'signature':
             new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
             new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-            apply_signature(pdf_path,
-                            field['value'],
-                            new_pdf_path,
-                            x_px, y_px,
-                            html_height_px,
-                            scale_x, scale_y,
-                            html_width_px)
+            apply_signature(pdf_path, field['value'], new_pdf_path, x_px, y_px, html_width_px, html_height_px, page_num=page_num)
             session_data['pdf'] = new_pdf_name
         elif field['type'] == 'checkbox':
-            apply_checkbox(pdf_path,
-                           x_px, y_px,
-                           data['value'] in ['true','on','1'],
-                           html_height_px,
-                           scale_x, scale_y,
-                           15,
-                           html_width_px)
+            apply_checkbox(pdf_path, x_px, y_px, data['value'] in ['true','on','1', True], html_width_px, html_height_px, page_num=page_num)
         else:
-            apply_text(pdf_path,
-                       x_px, y_px,
-                       data['value'],
-                       html_height_px,
-                       scale_x, scale_y,
-                       html_width_px)
-    else:
-        # Fallback to legacy coordinates
-        x = field.get('x')
-        y = field.get('y')
-        if field['type'] == 'signature':
-            new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
-            new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-            apply_signature(pdf_path,
-                            field['value'],
-                            new_pdf_path,
-                            x, y, 0, 1, 1)
-            session_data['pdf'] = new_pdf_name
-        elif field['type'] == 'checkbox':
-            apply_checkbox(pdf_path,
-                           x, y,
-                           data['value'] in ['true','on','1'],
-                           0, 1, 1)
-        else:
-            apply_text(pdf_path,
-                       x, y,
-                       data['value'],
-                       0, 1, 1)
-
-    # Save updated session data
+            apply_text(pdf_path, x_px, y_px, data['value'], html_width_px, html_height_px, page_num=page_num)
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
@@ -191,7 +224,6 @@ def finalise_signature():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
-    # Sauvegarder le message final s’il existe
     if 'message_final' in data:
         session_data['message_final'] = data['message_final']
     all_fields = session_data['fields']
@@ -217,124 +249,7 @@ def status(session_id):
     done = all(f['signed'] for f in data['fields'])
     return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
 
-# --- Utility: get PDF page size ---
-def get_pdf_page_size(pdf_path):
-    """
-    Retourne la taille (width, height) de la 1ère page du PDF en points.
-    """
-    reader = PdfReader(pdf_path)
-    mediabox = reader.pages[0].mediabox
-    width = float(mediabox.width)
-    height = float(mediabox.height)
-    return width, height
-
-# --- Rendering functions using dynamic PDF size and scales ---
-def apply_text(pdf_path, x_px, y_px, text, html_height_px, scale_x, scale_y, html_width_px=None):
-    pdf_width, pdf_height = get_pdf_page_size(pdf_path)
-    if html_width_px and (not scale_x or not scale_y):
-        scale_x = pdf_width / html_width_px
-        scale_y = pdf_height / html_height_px
-
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-
-    x_pdf = x_px * scale_x
-    y_pdf = (html_height_px - y_px) * scale_y
-
-    can.setFont("Helvetica", 12)
-    can.drawString(x_pdf, y_pdf, text)
-    can.save()
-
-    packet.seek(0)
-    overlay = PdfReader(packet)
-    for i, page in enumerate(reader.pages):
-        if i == 0:
-            page.merge_page(overlay.pages[0])
-        writer.add_page(page)
-    with open(pdf_path, 'wb') as f:
-        writer.write(f)
-
-def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_height_px, scale_x, scale_y, html_width_px=None):
-    pdf_width, pdf_height = get_pdf_page_size(pdf_path)
-    if html_width_px and (not scale_x or not scale_y):
-        scale_x = pdf_width / html_width_px
-        scale_y = pdf_height / html_height_px
-
-    width, height = 100, 40
-    x_pdf = x_px * scale_x - width/2
-    y_pdf = (html_height_px - y_px) * scale_y - height/2
-
-    if sig_data.startswith("data:image/png;base64,"):
-        sig_data = sig_data.split(",",1)[1]
-    image_bytes = base64.b64decode(sig_data)
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
-
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    img_io = io.BytesIO()
-    image.save(img_io, format="PNG")
-    img_io.seek(0)
-    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
-    can.save()
-
-    packet.seek(0)
-    overlay = PdfReader(packet)
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
-    for i, page in enumerate(reader.pages):
-        if i == 0:
-            page.merge_page(overlay.pages[0])
-        writer.add_page(page)
-    with open(output_path, 'wb') as f:
-        writer.write(f)
-
-def apply_checkbox(pdf_path, x_px, y_px, checked, html_height_px, scale_x, scale_y, size=15, html_width_px=None):
-    pdf_width, pdf_height = get_pdf_page_size(pdf_path)
-    if html_width_px and (not scale_x or not scale_y):
-        scale_x = pdf_width / html_width_px
-        scale_y = pdf_height / html_height_px
-
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-
-    x_pdf = x_px * scale_x - size/2
-    y_pdf = (html_height_px - y_px) * scale_y - size/2
-
-    can.rect(x_pdf, y_pdf, size, size)
-    if checked:
-        can.setLineWidth(2)
-        can.line(x_pdf, y_pdf, x_pdf+size, y_pdf+size)
-        can.line(x_pdf, y_pdf+size, x_pdf+size, y_pdf)
-    can.save()
-
-    packet.seek(0)
-    overlay = PdfReader(packet)
-    for i, page in enumerate(reader.pages):
-        if i == 0:
-            page.merge_page(overlay.pages[0])
-        writer.add_page(page)
-    with open(pdf_path, 'wb') as f:
-        writer.write(f)
-
-def save_signature_image(data_url, session_id, index):
-    if data_url.startswith("data:image/png;base64,"):
-        data_url = data_url.split(",",1)[1]
-    sig_data = base64.b64decode(data_url)
-    sig_path = os.path.join(UPLOAD_FOLDER, f"{session_id}_sig_{index}.png")
-    with open(sig_path, 'wb') as f:
-        f.write(sig_data)
-    return sig_path
-
-# --- Email sending function ---
-
 def send_email(session_id, step):
-    """
-    Envoie un email au signataire de l'étape `step` pour lui demander de signer.
-    """
     session_file = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(session_file) as f:
         data = json.load(f)
@@ -347,12 +262,10 @@ def send_email(session_id, step):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    # message personnalisé ou par défaut
     body = data.get('email_message') or f"Bonjour, veuillez signer ici : {link}"
     if link not in body:
         body = f"{body}\n{link}"
     msg.set_content(body)
-    # envoi SMTP
     try:
         smtp_server = os.getenv('SMTP_SERVER')
         smtp_port = int(os.getenv('SMTP_PORT', 587))
@@ -366,12 +279,7 @@ def send_email(session_id, step):
         with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
             log.write(f"[ERROR] send_email to {recipient} at step {step}: {e}\n")
 
-# --- PDF final sending to all ---
-
 def send_pdf_to_all(session_data):
-    """
-    Envoie le PDF final signé à tous les destinataires uniques.
-    """
     pdf_name = session_data.get('pdf')
     pdf_path = os.path.join(UPLOAD_FOLDER, pdf_name)
     if not os.path.isfile(pdf_path):
