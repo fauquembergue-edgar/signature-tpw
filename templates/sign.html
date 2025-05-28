@@ -18,11 +18,25 @@
       z-index: 10;
       transform: none;
       cursor: pointer;
+      box-sizing: border-box;
     }
     .zone.locked {
       pointer-events: none;
       opacity: 0.5;
       cursor: default;
+    }
+    .zone.statictext {
+      border: 2px dashed #338DFF !important;
+      background: #e6f0ff !important;
+      color: #338DFF !important;
+      font-weight: bold;
+      font-size: 15px;
+      padding: 0 !important;
+      margin: 0 !important;
+      line-height: 1 !important;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
     }
     .legend-box { display: inline-block; width: 12px; height: 12px; margin-right: 5px; }
     #input-area {
@@ -69,34 +83,40 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
     const viewport = page.getViewport({ scale: 1 });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-    console.log("Canvas size:", canvas.width, canvas.height); // DEBUG
     return page.render({ canvasContext: ctx, viewport }).promise;
   })
 ).then(() => {
   fields.forEach((f, index) => {
     const zone = document.createElement('div');
     zone.className = 'zone';
-    if (f.email !== signEmail) zone.classList.add('locked');
-    zone.style.left        = `${f.x}px`;
-    zone.style.top         = `${f.y}px`;
-    zone.style.width       = `${(f.w || 100)}px`;
-    zone.style.height      = `${(f.h || 40)}px`;
-    zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
-    zone.dataset.type      = f.type;
-    zone.dataset.index     = index;
-    zone.dataset.email     = f.email;
-
-    if (f.type === 'signature') {
+    if (f.type === 'statictext') {
+      zone.classList.add('statictext');
+      zone.innerHTML = `<span style="padding:0;margin:0;line-height:1;">${f.value}</span>`;
+    } else if (f.type === 'signature') {
       zone.textContent = 'Signature';
     } else if (f.type === 'text') {
       zone.textContent = 'Texte';
     } else if (f.type === 'checkbox') {
       zone.textContent = '☐';
     }
+    if (f.email !== signEmail && f.type !== 'statictext') zone.classList.add('locked');
+    zone.style.left        = `${f.x}px`;
+    zone.style.top         = `${f.y}px`;
+    zone.style.width       = `${(f.w || 100)}px`;
+    zone.style.height      = `${(f.h || 40)}px`;
+    if (f.type === 'statictext') {
+      // couleur gérée par la classe CSS
+    } else {
+      zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
+    }
+    zone.dataset.type      = f.type;
+    zone.dataset.index     = index;
+    zone.dataset.email     = f.email;
 
     container.appendChild(zone);
 
-    if (f.email === signEmail) {
+    // Statictext: pas d'interaction
+    if (f.email === signEmail && f.type !== 'statictext') {
       zone.addEventListener('click', () => handleClick(zone, f.type, index));
     }
   });
