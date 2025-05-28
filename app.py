@@ -30,13 +30,14 @@ def get_pdf_page_size(pdf_path, page_num=0):
     mediabox = reader.pages[page_num].mediabox
     width = float(mediabox.width)
     height = float(mediabox.height)
+    print("PDF Page Size:", width, height)  # DEBUG
     return width, height
 
-def get_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height):
+def get_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height, offset_x=36, offset_y=36):
     scale_x = pdf_width / html_width_px
     scale_y = pdf_height / html_height_px
-    x_pdf = x_px * scale_x
-    y_pdf = (html_height_px - y_px - field_height) * scale_y
+    x_pdf = x_px * scale_x + offset_x
+    y_pdf = (html_height_px - y_px - field_height) * scale_y + offset_y
     return x_pdf, y_pdf
 
 def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
@@ -56,7 +57,8 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
 
 def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_height=40, page_num=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    x_pdf, y_pdf = get_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
+    x_pdf, y_pdf = get_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height, offset_x=36, offset_y=36)
+    print(f"TEXT at x_px={x_px}, y_px={y_px}, x_pdf={x_pdf}, y_pdf={y_pdf}, text={text}")  # DEBUG
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.setFont("Helvetica", 14)
@@ -69,8 +71,9 @@ def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_
 def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     width, height = 100, field_height
-    x_pdf, y_pdf = get_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
+    x_pdf, y_pdf = get_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height, offset_x=36, offset_y=36)
     x_pdf -= width / 2  # centrer la signature sur la zone
+    print(f"SIGN at x_px={x_px}, y_px={y_px}, x_pdf={x_pdf}, y_pdf={y_pdf}")  # DEBUG
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",", 1)[1]
     image_bytes = base64.b64decode(sig_data)
@@ -88,8 +91,9 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
 
 def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    x_pdf, y_pdf = get_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
+    x_pdf, y_pdf = get_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height, offset_x=36, offset_y=36)
     x_pdf -= size / 2
+    print(f"CHECKBOX at x_px={x_px}, y_px={y_px}, x_pdf={x_pdf}, y_pdf={y_pdf}, checked={checked}")  # DEBUG
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.rect(x_pdf, y_pdf, size, size)
