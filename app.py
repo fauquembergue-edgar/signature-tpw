@@ -329,11 +329,9 @@ def send_email(session_id, step):
             server.login(smtp_user, smtp_pass)
             server.send_message(msg)
     except Exception as e:
-        with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] envoi email vers {recipient} étape {step} : {e}")
-
-
-def send_pdf_to_all(session_data):
+            with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
+                log.write(f"[ERROR] envoi PDF final à {recipient} : {e}
+"):
     """
     Envoie le PDF final signé à tous les destinataires uniques.
     """
@@ -369,8 +367,7 @@ def send_pdf_to_all(session_data):
                 server.send_message(msg)
         except Exception as e:
             with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                log.write(f"[ERROR] envoi PDF final à {recipient} : {e}
-")
+                log.write(f"[ERROR] envoi PDF final à {recipient} : {e}\n")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
