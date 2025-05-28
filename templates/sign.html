@@ -80,8 +80,8 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
     if (f.email !== signEmail) zone.classList.add('locked');
     zone.style.left        = `${f.x * scale}px`;
     zone.style.top         = `${f.y * scale}px`;
-    zone.style.width       = `${f.w * scale || 100}px`;
-    zone.style.height      = `${f.h * scale || 40}px`;
+    zone.style.width       = `${(f.w || 100) * scale}px`;
+    zone.style.height      = `${(f.h || 40) * scale}px`;
     zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
     zone.dataset.type      = f.type;
     zone.dataset.index     = index;
@@ -122,7 +122,11 @@ function handleClick(zone, type, index) {
           session_id: sessionId,
           step: step,
           field_index: index,
-          value: input.value
+          value: input.value,
+          x_px: zone.offsetLeft / scale,
+          y_px: zone.offsetTop / scale,
+          html_width_px: canvas.width,
+          html_height_px: canvas.height
         })
       }).then(() => {
         zone.textContent = input.value;
@@ -148,8 +152,8 @@ function handleClick(zone, type, index) {
       <canvas id="sigCanvas" width="300" height="100"></canvas><br>
       <button id="sigDrawBtn" style="pointer-events:auto;">Valider dessin</button>
     `;
-    document.getElementById('sigFileBtn').onclick = () => sendSigFile(index);
-    document.getElementById('sigDrawBtn').onclick = () => sendSigDraw(index);
+    document.getElementById('sigFileBtn').onclick = () => sendSigFile(index, zone);
+    document.getElementById('sigDrawBtn').onclick = () => sendSigDraw(index, zone);
     initSigCanvas();
   }
   else if (type === 'checkbox') {
@@ -170,7 +174,11 @@ function handleClick(zone, type, index) {
           session_id: sessionId,
           step: step,
           field_index: index,
-          value: checkbox.checked
+          value: checkbox.checked,
+          x_px: zone.offsetLeft / scale,
+          y_px: zone.offsetTop / scale,
+          html_width_px: canvas.width,
+          html_height_px: canvas.height
         })
       }).then(() => {
         zone.textContent = checkbox.checked ? '☑' : '☐';
@@ -202,7 +210,7 @@ function initSigCanvas() {
   };
 }
 
-function sendSigFile(index) {
+function sendSigFile(index, zone) {
   const file = document.getElementById('sigFile').files[0];
   const reader = new FileReader();
   reader.onload = () => {
@@ -213,16 +221,20 @@ function sendSigFile(index) {
         session_id: sessionId,
         step: step,
         field_index: index,
-        value: reader.result
+        value: reader.result,
+        x_px: zone.offsetLeft / scale,
+        y_px: zone.offsetTop / scale,
+        html_width_px: canvas.width,
+        html_height_px: canvas.height
       })
     }).then(() => updateZone(index));
   };
   if (file) reader.readAsDataURL(file);
 }
 
-function sendSigDraw(index) {
-  const canvas = document.getElementById('sigCanvas');
-  const dataURL = canvas.toDataURL('image/png');
+function sendSigDraw(index, zone) {
+  const canvasDraw = document.getElementById('sigCanvas');
+  const dataURL = canvasDraw.toDataURL('image/png');
   fetch('/fill-field', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -230,7 +242,11 @@ function sendSigDraw(index) {
       session_id: sessionId,
       step: step,
       field_index: index,
-      value: dataURL
+      value: dataURL,
+      x_px: zone.offsetLeft / scale,
+      y_px: zone.offsetTop / scale,
+      html_width_px: canvas.width,
+      html_height_px: canvas.height
     })
   }).then(() => updateZone(index));
 }
