@@ -1,368 +1,305 @@
-from flask import Flask, request, render_template, send_from_directory, jsonify
-import os
-import uuid
-import json
-import smtplib
-import base64
-from email.message import EmailMessage
-from PyPDF2 import PdfReader, PdfWriter
-from reportlab.pdfgen import canvas as pdfcanvas
-from dotenv import load_dotenv
-import io
-from PIL import Image
-from reportlab.lib.utils import ImageReader
-
-load_dotenv()
-
-app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
-SESSION_FOLDER = 'sessions'
-TEMPLATES_FOLDER = 'templates_data'
-LOG_FOLDER = 'logs'
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(SESSION_FOLDER, exist_ok=True)
-os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
-os.makedirs(LOG_FOLDER, exist_ok=True)
-
-def get_pdf_page_size(pdf_path, page_num=0):
-    reader = PdfReader(pdf_path)
-    mediabox = reader.pages[page_num].mediabox
-    width = float(mediabox.width)
-    height = float(mediabox.height)
-    print("PDF Page Size (points):", width, height)
-    return width, height
-
-def html_to_pdf_coords(x_html, y_html, h_zone, html_w, html_h, pdf_w, pdf_h):
-    scale_x = pdf_w / html_w
-    scale_y = pdf_h / html_h
-    x_pdf = x_html * scale_x
-    y_pdf = (html_h - y_html - h_zone) * scale_y
-    print(f"[COORD] HTML({x_html},{y_html}) h={h_zone} -> PDF({x_pdf:.2f},{y_pdf:.2f})")
-    return x_pdf, y_pdf
-
-def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
-    overlay_reader = PdfReader(overlay_pdf)
-    for i, page in enumerate(reader.pages):
-        if i == page_num:
-            page.merge_page(overlay_reader.pages[0])
-        writer.add_page(page)
-    if output_path:
-        with open(output_path, 'wb') as f:
-            writer.write(f)
-    else:
-        with open(pdf_path, 'wb') as f:
-            writer.write(f)
-
-def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_height=40, page_num=0):
-    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    font_size = 14
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
-    y_pdf += field_height - font_size  # Remonter baseline du texte
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    can.setFont("Helvetica", font_size)
-    can.setFillColorRGB(0, 0, 0)
-    can.drawString(x_pdf, y_pdf, text)
-    can.save()
-    packet.seek(0)
-    merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
-
-def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0):
-    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    width, height = 100, field_height
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, height, html_width_px, html_height_px, pdf_width, pdf_height)
-    if sig_data.startswith("data:image/png;base64,"):
-        sig_data = sig_data.split(",", 1)[1]
-    image_bytes = base64.b64decode(sig_data)
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
-
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    img_io = io.BytesIO()
-    image.save(img_io, format="PNG")
-    img_io.seek(0)
-    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
-    can.save()
-    packet.seek(0)
-    merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
-
-def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15):
-    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, size, html_width_px, html_height_px, pdf_width, pdf_height)
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    can.rect(x_pdf, y_pdf, size, size)
-    if checked:
-        can.setLineWidth(2)
-        can.line(x_pdf, y_pdf, x_pdf + size, y_pdf + size)
-        can.line(x_pdf, y_pdf + size, x_pdf + size, y_pdf)
-    can.save()
-    packet.seek(0)
-    merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
-
-def apply_static_text_fields(pdf_path, fields):
-    for field in fields:
-        if field["type"] == "statictext":
-            page_num = field.get('page', 0)
-            field_height = field.get('h', 40)
-            html_width_px = field.get('html_width_px', 893.6)
-            html_height_px = field.get('html_height_px', 1267.6)
-            # --- Conversion identique à signature/text/checkbox :
-            pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-            x_pdf, y_pdf = html_to_pdf_coords(
-                field['x'],
-                field['y'],
-                field_height,
-                html_width_px,
-                html_height_px,
-                pdf_width,
-                pdf_height
-            )
-            # Appelle apply_text avec les coordonnées déjà converties
-            font_size = 14  # Doit matcher apply_text
-            y_pdf += field_height - font_size  # Pour aligner la baseline comme apply_text
-            import io
-            from reportlab.pdfgen import canvas as pdfcanvas
-            packet = io.BytesIO()
-            can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-            can.setFont("Helvetica", font_size)
-            can.setFillColorRGB(0, 0, 0)
-            can.drawString(x_pdf, y_pdf, field['value'])
-            can.save()
-            packet.seek(0)
-            merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
-            
-
-@app.route('/')
-def index():
-    sessions = {}
-    for filename in os.listdir(SESSION_FOLDER):
-        if filename.endswith(".json"):
-            sid = filename.replace(".json", "")
-            with open(os.path.join(SESSION_FOLDER, filename)) as f:
-                data = json.load(f)
-            sessions[sid] = {
-                "pdf": data["pdf"],
-                "name": data.get("nom_demande", ""),
-                "fields": data["fields"],
-                "done": all(f.get("signed") for f in data["fields"] if f["type"] != "statictext")
-            }
-    templates = [f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')]
-    return render_template("index.html", templates=templates, sessions=sessions)
-
-@app.route('/upload', methods=['POST'])
-def upload():
-    file = request.files['pdf']
-    filename = f"{uuid.uuid4()}.pdf"
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(filepath)
-    return jsonify({'filename': filename})
-
-@app.route('/uploads/<path:filename>')
-def uploaded_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
-
-@app.route('/save-template', methods=['POST'])
-def save_template():
-    data = request.get_json()
-    name = data.get('name')
-    if not name:
-        return jsonify({'error': 'Nom de template requis'}), 400
-    path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
-    with open(path, 'w') as f:
-        json.dump({'pdf': data['pdf'], 'fields': data['fields']}, f)
-    return jsonify({'status': 'saved'})
-
-@app.route('/load-template/<name>')
-def load_template(name):
-    path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
-    if not os.path.exists(path):
-        return jsonify({'error': 'Template introuvable'}), 404
-    with open(path) as f:
-        return jsonify(json.load(f))
-
-@app.route('/define-fields', methods=['POST'])
-def define_fields():
-    data = json.loads(request.form['fields_json'])
-    message = request.form.get('email_message', '')
-    nom_demande = request.form.get('nom_demande', '')
-    session_id = str(uuid.uuid4())
-    fields = data['fields']
-    # Pas besoin d'envoyer html_width_px/html_height_px ici, chaque champ le porte déjà.
-    for i, field in enumerate(fields):
-        field['signed'] = False
-        field['step'] = i
-        field['page'] = field.get('page', 0)
-        if 'h' not in field:
-            if field['type'] == 'signature':
-                field['h'] = 40
-            elif field['type'] == 'checkbox':
-                field['h'] = 15
-            else:
-                field['h'] = 40
-    pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
-    apply_static_text_fields(pdf_path, fields)
-    session_data = {
-        'pdf': data['pdf'],
-        'fields': fields,
-        'email_message': message,
-        'nom_demande': nom_demande
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Signature du document</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+    .legend { margin-bottom: 15px; }
+    .pdf-wrapper { position: relative; display: inline-block; }
+    canvas { border: 1px solid #ccc; background: #fff; }
+    .zone {
+      position: absolute;
+      border: 2px dashed;
+      background: rgba(255,255,255,0.9);
+      font-size: 13px;
+      z-index: 10;
+      transform: none;
+      cursor: pointer;
+      box-sizing: border-box;
+      padding: 0 !important;
+      margin: 0 !important;
+      line-height: 1 !important;
     }
-    with open(os.path.join(SESSION_FOLDER, f"{session_id}.json"), 'w') as f:
-        json.dump(session_data, f)
-    send_email(session_id, step=0)
-    return render_template("notified.html", session_id=session_id)
+    .zone.locked {
+      pointer-events: none;
+      opacity: 0.5;
+      cursor: default;
+    }
+    .zone.statictext {
+      border: 2px dashed #338DFF !important;
+      background: #e6f0ff !important;
+      color: #338DFF !important;
+      font-weight: bold;
+      font-size: 15px;
+      padding: 0 !important;
+      margin: 0 !important;
+      line-height: 1 !important;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .legend-box { display: inline-block; width: 12px; height: 12px; margin-right: 5px; }
+    #input-area {
+      margin-top: 20px;
+      pointer-events: none;
+    }
+    #submit-btn { display: none; margin-top: 20px; padding: 10px 20px; }
+  </style>
+</head>
+<body>
+  <h2>Signature du document</h2>
 
-@app.route('/sign/<session_id>/<int:step>')
-def sign(session_id, step):
-    path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
-    with open(path) as f:
-        session_data = json.load(f)
-    fields = [f for f in session_data['fields'] if f.get('step', 0) == step]
-    return render_template(
-        'sign.html',
-        fields_json=fields,
-        pdf=session_data['pdf'],
-        session_id=session_id,
-        step=step,
-        email=fields[0]['email'],
-        fields_all=session_data['fields']
-    )
+  <div class="legend">
+    <strong>Vos zones à remplir sont en :</strong>
+    <span class="legend-box" style="background-color: #FF5733;"></span> Orange
+  </div>
 
-@app.route('/fill-field', methods=['POST'])
-def fill_field():
-    data = request.get_json()
-    session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
-    with open(session_path) as f:
-        session_data = json.load(f)
-    field = session_data['fields'][data['field_index']]
-    field['value'] = data['value']
-    field['signed'] = True
-    pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
-    page_num = field.get('page', 0)
-    field_height = data.get('field_height', field.get('h', 40))
-    x_px = data['x_px']
-    y_px = data['y_px']
-    html_width_px = data['html_width_px']
-    html_height_px = data['html_height_px']
+  <div class="pdf-wrapper" id="pdf-container">
+    <canvas id="pdf-canvas"></canvas>
+  </div>
 
-    if field['type'] == 'signature':
-        new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
-        new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_path, field['value'], new_pdf_path, x_px, y_px, html_width_px, html_height_px, field_height=field_height, page_num=page_num)
-        session_data['pdf'] = new_pdf_name
-    elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path, x_px, y_px, data['value'] in ['true','on','1', True], html_width_px, html_height_px, field_height=field_height, page_num=page_num)
-    else:
-        apply_text(pdf_path, x_px, y_px, data['value'], html_width_px, html_height_px, field_height=field_height, page_num=page_num)
+  <div id="input-area"></div>
+  <div style="margin-top:20px;">
+    <label for="final-message"><strong>Message à joindre (optionnel) :</strong></label><br>
+    <textarea id="final-message" rows="3" cols="50" placeholder="Un commentaire pour tous les destinataires…"></textarea>
+  </div>
+  <button id="submit-btn">Valider et envoyer</button>
 
-    with open(session_path, 'w') as f:
-        json.dump(session_data, f)
-    return jsonify({'status': 'ok'})
+<script>
+const sessionId = "{{ session_id }}";
+const step = {{ step }};
+const signEmail = "{{ email }}";
+const fields = {{ fields_all | tojson }};
+const inputArea = document.getElementById('input-area');
+const submitBtn = document.getElementById('submit-btn');
+let completed = fields.map(f => f.signed);
 
-@app.route('/finalise-signature', methods=['POST'])
-def finalise_signature():
-    data = request.get_json()
-    session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
-    with open(session_path) as f:
-        session_data = json.load(f)
-    if 'message_final' in data:
-        session_data['message_final'] = data['message_final']
-    all_fields = session_data['fields']
-    current_step = max(f['step'] for f in all_fields if f['signed']) if any(f['signed'] for f in all_fields) else 0
-    remaining_same = [f for f in all_fields if f['step']==current_step and not f['signed'] and f["type"] != "statictext"]
-    if remaining_same:
-        return jsonify({'status': 'incomplete'})
-    remaining = [f for f in all_fields if not f['signed'] and f["type"] != "statictext"]
-    if remaining:
-        next_step = min(f['step'] for f in remaining)
-        send_email(data['session_id'], next_step)
-    else:
-        send_pdf_to_all(session_data)
-    with open(session_path, 'w') as f:
-        json.dump(session_data, f)
-    return jsonify({'status': 'finalised'})
+const canvas = document.getElementById('pdf-canvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('pdf-container');
 
-@app.route('/session/<session_id>/status')
-def status(session_id):
-    path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
-    with open(path) as f:
-        data = json.load(f)
-    done = all(f['signed'] for f in data['fields'] if f["type"] != "statictext")
-    return f"<h2>Signature terminée : {'✅ OUI' if done else '❌ NON'}</h2>"
+pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
+  pdf.getPage(1).then(page => {
+    const viewport = page.getViewport({ scale: 1 });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    return page.render({ canvasContext: ctx, viewport }).promise;
+  })
+).then(() => {
+  fields.forEach((f, index) => {
+    const zone = document.createElement('div');
+    zone.className = 'zone';
+    zone.style.left        = `${f.x}px`;
+    zone.style.top         = `${f.y}px`;
+    zone.style.width       = `${(f.w || 100)}px`;
+    zone.style.height      = `${(f.h || 40)}px`;
+    zone.dataset.type      = f.type;
+    zone.dataset.index     = index;
+    zone.dataset.email     = f.email;
 
-def send_email(session_id, step):
-    session_file = os.path.join(SESSION_FOLDER, f"{session_id}.json")
-    with open(session_file) as f:
-        data = json.load(f)
-    recipient = next((fld['email'] for fld in data['fields'] if fld.get('step', 0) == step and fld["type"] != "statictext"), None)
-    if not recipient:
-        return
-    app_url = os.getenv('APP_URL', 'http://localhost:5000')
-    link = f"{app_url}/sign/{session_id}/{step}"
-    msg = EmailMessage()
-    msg['Subject'] = 'Signature requise'
-    msg['From'] = os.getenv('SMTP_USER')
-    msg['To'] = recipient
-    body = data.get('email_message') or f"Bonjour, veuillez signer ici : {link}"
-    if link not in body:
-        body = f"{body}\n{link}"
-    msg.set_content(body)
-    try:
-        smtp_server = os.getenv('SMTP_SERVER')
-        smtp_port = int(os.getenv('SMTP_PORT', 587))
-        smtp_user = os.getenv('SMTP_USER')
-        smtp_pass = os.getenv('SMTP_PASS')
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.send_message(msg)
-    except Exception as e:
-        with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-            log.write(f"[ERROR] send_email to {recipient} at step {step}: {e}\n")
+    if (f.type === 'statictext') {
+      // Important: texte positionné sans padding/margin, en haut à gauche de la zone
+      zone.classList.add('statictext');
+      // Le span est positionné en haut à gauche, sans padding ni margin
+      zone.innerHTML = `<span style="position:absolute;left:0;top:0;padding:0;margin:0;line-height:1;font-size:15px;font-weight:bold;color:#338DFF;box-sizing:border-box;">${f.value}</span>`;
+    } else if (f.type === 'signature') {
+      zone.textContent = 'Signature';
+    } else if (f.type === 'text') {
+      zone.textContent = 'Texte';
+    } else if (f.type === 'checkbox') {
+      zone.textContent = '☐';
+    }
 
-def send_pdf_to_all(session_data):
-    pdf_name = session_data.get('pdf')
-    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_name)
-    if not os.path.isfile(pdf_path):
-        return
-    with open(pdf_path, 'rb') as f:
-        content = f.read()
-    sent = set()
-    message_final = session_data.get('message_final', '')
-    for fld in session_data['fields']:
-        recipient = fld.get('email')
-        if not recipient or recipient in sent:
-            continue
-        sent.add(recipient)
-        msg = EmailMessage()
-        msg['Subject'] = 'Document signé final'
-        msg['From'] = os.getenv('SMTP_USER')
-        msg['To'] = recipient
-        body = 'Voici le PDF final signé.'
-        if message_final:
-            body += f"\n\nMessage du signataire :\n{message_final}"
-        msg.set_content(body)
-        msg.add_attachment(content,
-                           maintype='application',
-                           subtype='pdf',
-                           filename='document_final.pdf')
-        try:
-            smtp_server = os.getenv('SMTP_SERVER')
-            smtp_port = int(os.getenv('SMTP_PORT', 587))
-            smtp_user = os.getenv('SMTP_USER')
-            smtp_pass = os.getenv('SMTP_PASS')
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_pass)
-                server.send_message(msg)
-        except Exception as e:
-            with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
-                log.write(f"[ERROR] send_pdf_to_all to {recipient}: {e}\n")
+    if (f.email !== signEmail && f.type !== 'statictext') zone.classList.add('locked');
+    if (f.type !== 'statictext')
+      zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    container.appendChild(zone);
+
+    // Statictext: pas d'interaction
+    if (f.email === signEmail && f.type !== 'statictext') {
+      zone.addEventListener('click', () => handleClick(zone, f.type, index));
+    }
+  });
+});
+
+function handleClick(zone, type, index) {
+  inputArea.innerHTML = '';
+  inputArea.style.pointerEvents = 'none';
+
+  if (type === 'text') {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Votre réponse';
+    const submit = document.createElement('button');
+    submit.textContent = 'Valider';
+    submit.onclick = () => {
+      fetch('/fill-field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          step: step,
+          field_index: index,
+          value: input.value,
+          x_px: fields[index].x,
+          y_px: fields[index].y,
+          field_height: fields[index].h || 40,
+          html_width_px: canvas.width,
+          html_height_px: canvas.height
+        })
+      }).then(() => {
+        zone.textContent = input.value;
+        zone.style.border = '2px solid green';
+        zone.classList.add('locked');
+        completed[index] = true;
+        inputArea.innerHTML = '';
+        checkCompletion();
+      });
+    };
+    inputArea.appendChild(input);
+    inputArea.appendChild(submit);
+    inputArea.style.pointerEvents = 'auto';
+    input.style.pointerEvents = 'auto';
+    submit.style.pointerEvents = 'auto';
+  }
+  else if (type === 'signature') {
+    inputArea.style.pointerEvents = 'auto';
+    inputArea.innerHTML = `
+      <p>Signature :</p>
+      <input type="file" id="sigFile" accept="image/png" style="pointer-events:auto;">
+      <button id="sigFileBtn" style="pointer-events:auto;">Valider image</button><br><br>
+      <canvas id="sigCanvas" width="300" height="100"></canvas><br>
+      <button id="sigDrawBtn" style="pointer-events:auto;">Valider dessin</button>
+    `;
+    document.getElementById('sigFileBtn').onclick = () => sendSigFile(index);
+    document.getElementById('sigDrawBtn').onclick = () => sendSigDraw(index);
+    initSigCanvas();
+  }
+  else if (type === 'checkbox') {
+    inputArea.style.pointerEvents = 'auto';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.style.pointerEvents = 'auto';
+
+    const submit = document.createElement('button');
+    submit.textContent = 'Valider';
+    submit.style.pointerEvents = 'auto';
+    submit.onclick = () => {
+      fetch('/fill-field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          step: step,
+          field_index: index,
+          value: checkbox.checked,
+          x_px: fields[index].x,
+          y_px: fields[index].y,
+          field_height: fields[index].h || 15,
+          html_width_px: canvas.width,
+          html_height_px: canvas.height
+        })
+      }).then(() => {
+        zone.textContent = checkbox.checked ? '☑' : '☐';
+        zone.style.border = '2px solid green';
+        zone.classList.add('locked');
+        completed[index] = true;
+        inputArea.innerHTML = '';
+        checkCompletion();
+      });
+    };
+
+    inputArea.appendChild(checkbox);
+    inputArea.appendChild(submit);
+  }
+}
+
+function initSigCanvas() {
+  const canvas = document.getElementById('sigCanvas');
+  const ctx = canvas.getContext('2d');
+  let drawing = false;
+  canvas.onmousedown = () => { drawing = true; ctx.beginPath(); };
+  canvas.onmouseup = () => { drawing = false; };
+  canvas.onmousemove = e => {
+    if (!drawing) return;
+    const rect = canvas.getBoundingClientRect();
+    ctx.lineWidth = 2;
+    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.stroke();
+  };
+}
+
+function sendSigFile(index) {
+  const file = document.getElementById('sigFile').files[0];
+  const reader = new FileReader();
+  reader.onload = () => {
+    fetch('/fill-field', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId,
+        step: step,
+        field_index: index,
+        value: reader.result,
+        x_px: fields[index].x,
+        y_px: fields[index].y,
+        field_height: fields[index].h || 40,
+        html_width_px: canvas.width,
+        html_height_px: canvas.height
+      })
+    }).then(() => updateZone(index));
+  };
+  if (file) reader.readAsDataURL(file);
+}
+
+function sendSigDraw(index) {
+  const canvasDraw = document.getElementById('sigCanvas');
+  const dataURL = canvasDraw.toDataURL('image/png');
+  fetch('/fill-field', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      step: step,
+      field_index: index,
+      value: dataURL,
+      x_px: fields[index].x,
+      y_px: fields[index].y,
+      field_height: fields[index].h || 40,
+      html_width_px: canvas.width,
+      html_height_px: canvas.height
+    })
+  }).then(() => updateZone(index));
+}
+
+function updateZone(index) {
+  const zone = document.querySelector(`.zone[data-index='${index}']`);
+  zone.textContent = '✅';
+  zone.style.border = '2px solid green';
+  zone.classList.add('locked');
+  completed[index] = true;
+  checkCompletion();
+}
+
+function checkCompletion() {
+  const mustSign = fields.filter(f => f.email === signEmail);
+  const allDone = mustSign.every((f, i) => completed[ fields.indexOf(f) ]);
+  if (allDone) submitBtn.style.display = 'inline-block';
+}
+
+submitBtn.onclick = () => {
+  const finalMessage = document.getElementById('final-message').value;
+  fetch('/finalise-signature', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, message_final: finalMessage })
+  }).then(() => {
+    alert("Signature finalisée. Vous pouvez fermer cette page.");
+  });
+};
+</script>
+</body>
+</html>
