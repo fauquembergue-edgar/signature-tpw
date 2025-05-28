@@ -296,35 +296,29 @@ def save_signature_image(data_url, session_id, index):
         f.write(sig_data)
     return sig_path
 
-# email sending unchanged
+# --- Email and PDF Sending Functions ---
 
 def send_email(session_id, step):
     """
     Envoie un email au signataire de l'étape `step` pour lui demander de signer.
     """
-    # Charger les données de session
     session_file = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(session_file) as f:
         data = json.load(f)
-    # Trouver le destinataire de cette étape
     recipient = next((fld['email'] for fld in data['fields'] if fld.get('step', 0) == step), None)
     if not recipient:
         return
-    # Construire l'URL de signature
     app_url = os.getenv('APP_URL', 'http://localhost:5000')
     link = f"{app_url}/sign/{session_id}/{step}"
-    # Préparer le message
     msg = EmailMessage()
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
     body = data.get('email_message') or f"Bonjour, veuillez signer ici : {link}"
-    # Si data['email_message'] ne contient pas déjà le lien, on l'ajoute
-    if '{link}' not in body:
-        body = body + "
-" + link
+    # Ajouter le lien si pas présent
+    if link not in body:
+        body = body + " " + link
     msg.set_content(body)
-    # Envoi via SMTP
     try:
         smtp_server = os.getenv('SMTP_SERVER')
         smtp_port = int(os.getenv('SMTP_PORT', 587))
@@ -335,7 +329,6 @@ def send_email(session_id, step):
             server.login(smtp_user, smtp_pass)
             server.send_message(msg)
     except Exception as e:
-        # Logger l'erreur
         with open(os.path.join(LOG_FOLDER, 'audit.log'), 'a') as log:
             log.write(f"[ERROR] envoi email vers {recipient} étape {step} : {e}
 ")
@@ -349,11 +342,9 @@ def send_pdf_to_all(session_data):
     pdf_path = os.path.join(UPLOAD_FOLDER, pdf_name)
     if not os.path.isfile(pdf_path):
         return
-    # Lire le contenu du PDF
     with open(pdf_path, 'rb') as f:
         content = f.read()
     sent = set()
-    # Pour chaque champ, envoyer le PDF une fois par destinataire
     for fld in session_data['fields']:
         recipient = fld.get('email')
         if not recipient or recipient in sent:
@@ -382,11 +373,9 @@ def send_pdf_to_all(session_data):
                 log.write(f"[ERROR] envoi PDF final à {recipient} : {e}
 ")
 
-
-def send_pdf_to_all(session_data):
-    # ... existing implementation ...
-    pass
-
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
+
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
