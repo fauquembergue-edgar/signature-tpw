@@ -64,17 +64,14 @@ const canvas = document.getElementById('pdf-canvas');
 const ctx = canvas.getContext('2d');
 const container = document.getElementById('pdf-container');
 
-// *** Dimensions fixes, adaptées à ton PDF et ton canvas ***
-canvas.width = 893.6;
-canvas.height = 1267.6;
-
-// Affichage PDF à taille réelle du canvas
+// On laisse le rendu HTML absolument inchangé
 pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
   pdf.getPage(1).then(page => {
-    // On force l'affichage à la taille du canvas pour que la correspondance soit parfaite
     const viewport = page.getViewport({ scale: 1 });
-    // On ignore le viewport et rend dans la taille du canvas
-    return page.render({ canvasContext: ctx, viewport: viewport, transform: [canvas.width / viewport.width, 0, 0, canvas.height / viewport.height, 0, 0] }).promise;
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    console.log("Canvas size:", canvas.width, canvas.height); // DEBUG
+    return page.render({ canvasContext: ctx, viewport }).promise;
   })
 ).then(() => {
   fields.forEach((f, index) => {
@@ -104,8 +101,6 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
       zone.addEventListener('click', () => handleClick(zone, f.type, index));
     }
   });
-  // DEBUG dimensions:
-  console.log("Canvas size:", canvas.width, canvas.height);
 });
 
 function handleClick(zone, type, index) {
@@ -129,7 +124,9 @@ function handleClick(zone, type, index) {
           value: input.value,
           x_px: fields[index].x,
           y_px: fields[index].y,
-          field_height: fields[index].h || 40
+          field_height: fields[index].h || 40,
+          html_width_px: canvas.width,
+          html_height_px: canvas.height
         })
       }).then(() => {
         zone.textContent = input.value;
@@ -180,7 +177,9 @@ function handleClick(zone, type, index) {
           value: checkbox.checked,
           x_px: fields[index].x,
           y_px: fields[index].y,
-          field_height: fields[index].h || 15
+          field_height: fields[index].h || 15,
+          html_width_px: canvas.width,
+          html_height_px: canvas.height
         })
       }).then(() => {
         zone.textContent = checkbox.checked ? '☑' : '☐';
@@ -226,7 +225,9 @@ function sendSigFile(index) {
         value: reader.result,
         x_px: fields[index].x,
         y_px: fields[index].y,
-        field_height: fields[index].h || 40
+        field_height: fields[index].h || 40,
+        html_width_px: canvas.width,
+        html_height_px: canvas.height
       })
     }).then(() => updateZone(index));
   };
@@ -246,7 +247,9 @@ function sendSigDraw(index) {
       value: dataURL,
       x_px: fields[index].x,
       y_px: fields[index].y,
-      field_height: fields[index].h || 40
+      field_height: fields[index].h || 40,
+      html_width_px: canvas.width,
+      html_height_px: canvas.height
     })
   }).then(() => updateZone(index));
 }
