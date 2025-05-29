@@ -124,7 +124,6 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
 
     for field in fields:
         if field["type"] == "statictext":
-            # On récupère les coordonnées et dimensions du front
             x_html = field.get("x", 0)
             y_html = field.get("y", 0)
             w_html = field.get("w", 100)
@@ -132,25 +131,17 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
             value = field.get("value", "")
             font_size = 15  # doit matcher le front
 
-            # Conversion des coordonnées du front vers le PDF
-            # x_pdf = x_html * pdf_width / html_width_px
-            # y_pdf = (html_height_px - y_html - h_html) * pdf_height / html_height_px
-
-            # Mais ici, on suppose que html_width_px et html_height_px == pdf_width/pdf_height
-            # donc on peut directement appliquer les valeurs en proportion
             x_pdf = x_html * pdf_width / html_width_px
-            # Y : attention, dans le PDF l'origine est en bas à gauche, alors qu'en HTML c'est en haut à gauche
             y_pdf = (html_height_px - y_html - h_html) * pdf_height / html_height_px
 
             can.setFont("Helvetica-Bold", font_size)
-            can.setFillColorRGB(0.2, 0.55, 1)  # #338DFF : bleu clair
+            can.setFillColorRGB(0.2, 0.55, 1)  # #338DFF : bleu clair
             can.drawString(x_pdf, y_pdf, value)
 
     can.save()
     packet.seek(0)
 
     # Merge l'overlay sur le PDF d'origine
-    from PyPDF2 import PdfMerger, PdfReader, PdfWriter, PageObject
     overlay_pdf = PdfReader(packet)
     writer = PdfWriter()
     for i, p in enumerate(pdf_reader.pages):
@@ -160,8 +151,6 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
         writer.add_page(page)
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
-
-            
 
 @app.route('/')
 def index():
@@ -218,7 +207,6 @@ def define_fields():
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
     fields = data['fields']
-    # Pas besoin d'envoyer html_width_px/html_height_px ici, chaque champ le porte déjà.
     for i, field in enumerate(fields):
         field['signed'] = False
         field['step'] = i
@@ -231,7 +219,10 @@ def define_fields():
             else:
                 field['h'] = 40
     pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
-    apply_static_text_fields(pdf_path, fields)
+    # Valeurs fixes du canvas HTML utilisé pour placer les zones (doivent matcher le front)
+    html_width_px = 931.5
+    html_height_px = 1250
+    apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px)
     session_data = {
         'pdf': data['pdf'],
         'fields': fields,
