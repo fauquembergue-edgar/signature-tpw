@@ -103,37 +103,64 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields):
+def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, output_path=None):
+    """
+    Applique les champs statictext au PDF, à la même place (mêmes coordonnées, dimensions)
+    que la zone bleue aurait été affichée dans sign.html.
+    """
+    from reportlab.pdfgen import canvas as pdfcanvas
+    from PyPDF2 import PdfReader, PdfWriter
+    import io
+
+    # On lit la page d'origine
+    pdf_reader = PdfReader(pdf_path)
+    page = pdf_reader.pages[0]
+    pdf_width = float(page.mediabox.width)
+    pdf_height = float(page.mediabox.height)
+
+    # Création d'un overlay PDF pour y dessiner les textes
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+
     for field in fields:
         if field["type"] == "statictext":
-            page_num = field.get('page', 0)
-            field_height = field.get('h', 40)
-            html_width_px = field.get('html_width_px', 893.6)
-            html_height_px = field.get('html_height_px', 1267.6)
-            # --- Conversion identique à signature/text/checkbox :
-            pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-            x_pdf, y_pdf = html_to_pdf_coords(
-                field['x'],
-                field['y'],
-                field_height,
-                html_width_px,
-                html_height_px,
-                pdf_width,
-                pdf_height
-            )
-            # Appelle apply_text avec les coordonnées déjà converties
-            font_size = 14  # Doit matcher apply_text
-            y_pdf += field_height - font_size  # Pour aligner la baseline comme apply_text
-            import io
-            from reportlab.pdfgen import canvas as pdfcanvas
-            packet = io.BytesIO()
-            can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-            can.setFont("Helvetica", font_size)
-            can.setFillColorRGB(0, 0, 0)
-            can.drawString(x_pdf, y_pdf, field['value'])
-            can.save()
-            packet.seek(0)
-            merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
+            # On récupère les coordonnées et dimensions du front
+            x_html = field.get("x", 0)
+            y_html = field.get("y", 0)
+            w_html = field.get("w", 100)
+            h_html = field.get("h", 40)
+            value = field.get("value", "")
+            font_size = 15  # doit matcher le front
+
+            # Conversion des coordonnées du front vers le PDF
+            # x_pdf = x_html * pdf_width / html_width_px
+            # y_pdf = (html_height_px - y_html - h_html) * pdf_height / html_height_px
+
+            # Mais ici, on suppose que html_width_px et html_height_px == pdf_width/pdf_height
+            # donc on peut directement appliquer les valeurs en proportion
+            x_pdf = x_html * pdf_width / html_width_px
+            # Y : attention, dans le PDF l'origine est en bas à gauche, alors qu'en HTML c'est en haut à gauche
+            y_pdf = (html_height_px - y_html - h_html) * pdf_height / html_height_px
+
+            can.setFont("Helvetica-Bold", font_size)
+            can.setFillColorRGB(0.2, 0.55, 1)  # #338DFF : bleu clair
+            can.drawString(x_pdf, y_pdf, value)
+
+    can.save()
+    packet.seek(0)
+
+    # Merge l'overlay sur le PDF d'origine
+    from PyPDF2 import PdfMerger, PdfReader, PdfWriter, PageObject
+    overlay_pdf = PdfReader(packet)
+    writer = PdfWriter()
+    for i, p in enumerate(pdf_reader.pages):
+        page = p
+        if i == 0:
+            page.merge_page(overlay_pdf.pages[0])
+        writer.add_page(page)
+    with open(output_path or pdf_path, "wb") as f:
+        writer.write(f)
+
             
 
 @app.route('/')
