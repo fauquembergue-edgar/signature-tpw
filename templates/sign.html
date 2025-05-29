@@ -27,48 +27,6 @@
       opacity: 0.5;
       cursor: default;
     }
-    .zone.statictext {
-      border: 2px dashed #338DFF !important;
-      background: #e6f0ff !important;
-      color: #338DFF !important;
-      font-weight: bold;
-      font-size: 15px;
-      padding: 0 !important;
-      margin: 0 !important;
-      line-height: 1 !important;
-      box-sizing: border-box;
-      overflow: hidden;
-      position: absolute;
-    }
-    .statictext-inner {
-      position: absolute;
-      left: 0;
-      top: 0;
-      padding: 0;
-      margin: 0;
-      line-height: 1;
-      font-size: 15px;
-      font-weight: bold;
-      color: #338DFF;
-      box-sizing: border-box;
-      vertical-align: top;
-      transform: translateY(0px);
-    }
-    /* Style pour le texte noir positionné sur la même zone que la zone bleue */
-    .statictext-black {
-      position: absolute;
-      color: #111;
-      font-size: 15px;
-      font-weight: normal;
-      margin: 0;
-      padding: 0;
-      line-height: 1;
-      z-index: 20; /* au dessus pour bien voir */
-      pointer-events: none;
-      background: none;
-      box-sizing: border-box;
-      white-space: pre-wrap;
-    }
     .legend-box { display: inline-block; width: 12px; height: 12px; margin-right: 5px; }
     #input-area {
       margin-top: 20px;
@@ -118,10 +76,14 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
   })
 ).then(() => {
   fields.forEach((f, index) => {
+    // SUPPRESSION: AUCUN AFFICHAGE pour les zones statictext (ni zone ni texte)
+    if (f.type === 'statictext') {
+      return;
+    }
+
     const zone = document.createElement('div');
     zone.className = 'zone';
 
-    // Placement de la zone bleue (et du texte bleu interne)
     zone.style.left        = `${f.x}px`;
     zone.style.top         = `${f.y}px`;
     zone.style.width       = `${(f.w || 100)}px`;
@@ -130,21 +92,7 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
     zone.dataset.index     = index;
     zone.dataset.email     = f.email;
 
-    if (f.type === 'statictext') {
-      zone.classList.add('statictext');
-      // Texte bleu à l'intérieur de la zone
-      zone.innerHTML = `<span class="statictext-inner">${f.value}</span>`;
-
-      // Ajout du texte noir (hors case), exactement à la même position et taille que la zone bleue
-      const blackText = document.createElement('div');
-      blackText.className = 'statictext-black';
-      blackText.style.left = `${f.x}px`;
-      blackText.style.top = `${f.y}px`;
-      blackText.style.width = `${(f.w || 100)}px`;
-      blackText.style.height = `${(f.h || 40)}px`;
-      blackText.textContent = f.value;
-      container.appendChild(blackText);
-    } else if (f.type === 'signature') {
+    if (f.type === 'signature') {
       zone.textContent = 'Signature';
     } else if (f.type === 'text') {
       zone.textContent = 'Texte';
@@ -152,14 +100,13 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
       zone.textContent = '☐';
     }
 
-    if (f.email !== signEmail && f.type !== 'statictext') zone.classList.add('locked');
+    if (f.email !== signEmail) zone.classList.add('locked');
     if (f.type !== 'statictext')
       zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
 
     container.appendChild(zone);
 
-    // Statictext: pas d'interaction
-    if (f.email === signEmail && f.type !== 'statictext') {
+    if (f.email === signEmail) {
       zone.addEventListener('click', () => handleClick(zone, f.type, index));
     }
   });
