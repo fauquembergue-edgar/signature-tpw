@@ -105,10 +105,8 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
 
 def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, output_path=None):
     """
-    Place les statictext exactement comme la zone bleue dans sign.html :
-    - x = f.x (front) -> proportionnel sur le PDF, + une petite marge à droite (bordure zone)
-    - y = f.y (front) -> proportionnel sur le PDF, origine en haut à gauche (donc inversion pour ReportLab)
-    - texte en noir, centré verticalement dans la zone (comme le texte de la div bleue)
+    Place les statictext exactement comme la zone bleue dans sign.html,
+    avec une petite marge à gauche et un ajustement vertical pour la baseline.
     """
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
@@ -131,14 +129,15 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
             value = field.get("value", "")
             font_size = 15  # doit matcher le front
 
-            # Décalage horizontal pour simuler la bordure/marge de la div .zone
-            margin_left = 6  # px (ajuste si besoin)
-            # Décalage vertical pour centrer le texte dans la zone comme le front
-            # Le texte PDF est placé par sa baseline, donc on ajoute la moitié de la hauteur de la zone moins la moitié du font_size
+            # Marge pour ne pas coller au bord (simule la bordure/marge CSS)
+            margin_left = 10  # px (ajuste selon rendu)
+            margin_top = 10   # px (ajuste selon rendu)
+
+            # Conversion coordonnées
             x_pdf = (x_html + margin_left) * pdf_width / html_width_px
-            y_zone_top_html = y_html
-            y_zone_centre_html = y_html + h_html / 2
-            y_pdf = pdf_height - (y_zone_centre_html * pdf_height / html_height_px) - (font_size / 2)
+            # Pour y : on part du haut du PDF, on descend jusqu'à y_html + margin_top,
+            # puis on retire la hauteur de police pour placer la baseline juste en dessous du haut de zone
+            y_pdf = pdf_height - ((y_html + margin_top) * pdf_height / html_height_px) - font_size * 0.2
 
             can.setFont("Helvetica-Bold", font_size)
             can.setFillColorRGB(0, 0, 0)  # NOIR
