@@ -114,13 +114,11 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
     from PyPDF2 import PdfReader, PdfWriter
     import io
 
-    # On lit la page d'origine
     pdf_reader = PdfReader(pdf_path)
     page = pdf_reader.pages[0]
     pdf_width = float(page.mediabox.width)
     pdf_height = float(page.mediabox.height)
 
-    # Création d'un overlay PDF pour y dessiner les textes
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
 
@@ -133,17 +131,26 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
             value = field.get("value", "")
             font_size = 15  # doit matcher le front
 
-            # Placement identique à la zone bleue du front
             x_pdf = x_html * pdf_width / html_width_px
-            y_pdf_top = y_html * pdf_height / html_height_px
-            y_pdf = pdf_height - y_pdf_top - h_html * pdf_height / html_height_px
+            # Inversion du repère + alignement du haut du texte avec le haut de la zone
+            y_pdf = pdf_height - (y_html * pdf_height / html_height_px) - font_size
 
             can.setFont("Helvetica-Bold", font_size)
             can.setFillColorRGB(0, 0, 0)  # NOIR
-            can.drawString(x_pdf, y_pdf + h_html * pdf_height / html_height_px - font_size, value)
+            can.drawString(x_pdf, y_pdf, value)
 
     can.save()
     packet.seek(0)
+
+    overlay_pdf = PdfReader(packet)
+    writer = PdfWriter()
+    for i, p in enumerate(pdf_reader.pages):
+        page = p
+        if i == 0:
+            page.merge_page(overlay_pdf.pages[0])
+        writer.add_page(page)
+    with open(output_path or pdf_path, "wb") as f:
+        writer.write(f)
 
     overlay_pdf = PdfReader(packet)
     writer = PdfWriter()
