@@ -106,9 +106,9 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
 def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, output_path=None):
     """
     Place les statictext exactement comme la zone bleue dans sign.html :
-    - x = f.x (front) -> proportionnel sur le PDF
+    - x = f.x (front) -> proportionnel sur le PDF, + une petite marge à droite (bordure zone)
     - y = f.y (front) -> proportionnel sur le PDF, origine en haut à gauche (donc inversion pour ReportLab)
-    - texte en noir (comme de base)
+    - texte en noir, centré verticalement dans la zone (comme le texte de la div bleue)
     """
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
@@ -131,9 +131,14 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
             value = field.get("value", "")
             font_size = 15  # doit matcher le front
 
-            x_pdf = x_html * pdf_width / html_width_px
-            # Inversion du repère + alignement du haut du texte avec le haut de la zone
-            y_pdf = pdf_height - (y_html * pdf_height / html_height_px) - font_size
+            # Décalage horizontal pour simuler la bordure/marge de la div .zone
+            margin_left = 6  # px (ajuste si besoin)
+            # Décalage vertical pour centrer le texte dans la zone comme le front
+            # Le texte PDF est placé par sa baseline, donc on ajoute la moitié de la hauteur de la zone moins la moitié du font_size
+            x_pdf = (x_html + margin_left) * pdf_width / html_width_px
+            y_zone_top_html = y_html
+            y_zone_centre_html = y_html + h_html / 2
+            y_pdf = pdf_height - (y_zone_centre_html * pdf_height / html_height_px) - (font_size / 2)
 
             can.setFont("Helvetica-Bold", font_size)
             can.setFillColorRGB(0, 0, 0)  # NOIR
@@ -142,27 +147,6 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
     can.save()
     packet.seek(0)
 
-    overlay_pdf = PdfReader(packet)
-    writer = PdfWriter()
-    for i, p in enumerate(pdf_reader.pages):
-        page = p
-        if i == 0:
-            page.merge_page(overlay_pdf.pages[0])
-        writer.add_page(page)
-    with open(output_path or pdf_path, "wb") as f:
-        writer.write(f)
-
-    overlay_pdf = PdfReader(packet)
-    writer = PdfWriter()
-    for i, p in enumerate(pdf_reader.pages):
-        page = p
-        if i == 0:
-            page.merge_page(overlay_pdf.pages[0])
-        writer.add_page(page)
-    with open(output_path or pdf_path, "wb") as f:
-        writer.write(f)
-
-    # Merge l'overlay sur le PDF d'origine
     overlay_pdf = PdfReader(packet)
     writer = PdfWriter()
     for i, p in enumerate(pdf_reader.pages):
