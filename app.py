@@ -89,8 +89,16 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
+def apply_static_text_fields(
+    pdf_path,
+    fields,
+    output_path=None,
+    page_num=0,
+    offset_x=30,  # Décalage horizontal (ex: -10 pour aller à gauche)
+    offset_y=-20   # Décalage vertical (ex: -10 pour descendre)
+):
     from reportlab.pdfgen import canvas as pdfcanvas
+    from PyPDF2 import PdfReader, PdfWriter
     import io
 
     html_canvas_sizes = {
@@ -103,8 +111,6 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
         y_pdf = pdf_height - ((y_px + field_height) * pdf_height / html_height_px)
         return x_pdf, y_pdf
 
-    # Récupère la taille PDF de la bonne page
-    from PyPDF2 import PdfReader
     pdf_reader = PdfReader(pdf_path)
     page = pdf_reader.pages[page_num]
     pdf_width = float(page.mediabox.width)
@@ -120,8 +126,8 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
             value = field.get("value", "")
             source = field.get("source", "sign")
             html_width_px, html_height_px = html_canvas_sizes.get(source, html_canvas_sizes["sign"])
-            field_height = field.get("h", 40)  # même valeur que le front
-            font_size = 14  # même valeur que le front
+            field_height = field.get("h", 40)
+            font_size = 14
 
             x_pdf, y_pdf = html_to_pdf_coords(
                 x_html, y_html, field_height,
@@ -130,21 +136,17 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
             )
             y_pdf += field_height - font_size
 
+            # Application des offsets
+            x_pdf += offset_x  # négatif = vers la gauche
+            y_pdf += offset_y  # négatif = vers le bas
+
             can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
 
-            # Debug : rectangle à la zone attendue
-            # can.setStrokeColorRGB(1, 0, 0)
-            # can.rect(x_pdf, y_pdf, 80, font_size, fill=0)
-
-            print(f"[STATIC] src={source} html=({x_html},{y_html}) h={field_height} canvas={html_width_px}x{html_height_px} => PDF=({x_pdf:.2f},{y_pdf:.2f})")
-
     can.save()
     packet.seek(0)
 
-    # Merge overlay
-    from PyPDF2 import PdfWriter
     overlay_pdf = PdfReader(packet)
     writer = PdfWriter()
     for i, p in enumerate(pdf_reader.pages):
