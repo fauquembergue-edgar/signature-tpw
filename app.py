@@ -103,13 +103,14 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, output_path=None):
-    """
-    Place les statictext avec les mêmes calculs de coordonnées que les autres champs
-    """
-    from reportlab.pdfgen import canvas as pdfcanvas
-    from PyPDF2 import PdfReader, PdfWriter
-    import io
+def apply_static_text_fields(pdf_path, fields, output_path=None):
+
+    # Dictionnaire des tailles d'origine (html_width_px, html_height_px)
+    # Ajoute ici d'autres contextes si besoin
+    html_canvas_sizes = {
+        "index": (596.6, 846.6),
+        "sign": (931.5, 1264),
+    }
 
     pdf_reader = PdfReader(pdf_path)
     page = pdf_reader.pages[0]
@@ -123,29 +124,25 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
         if field["type"] == "statictext":
             x_html = field.get("x", 0)
             y_html = field.get("y", 0)
-            h_html = field.get("h", 40)
             value = field.get("value", "")
-            font_size = 15
-            
-            # Utiliser la même fonction de conversion que pour les autres champs
-            x_pdf, y_pdf = html_to_pdf_coords(
-                x_html, y_html, h_html, 
-                html_width_px, html_height_px, 
-                pdf_width, pdf_height
-            )
-            
-            # Ajuster la position Y pour la baseline du texte
-            # (similaire à apply_text)
-            y_pdf += h_html - font_size
-            
-            # Ajouter une petite marge à gauche pour éviter de coller au bord
-            x_pdf += 5
-            
+            font_size = 15  # doit matcher le front
+
+            # Détermine la provenance des coordonnées (index ou sign)
+            # Si le champ contient une clé "source" on l'utilise, sinon on utilise "sign" par défaut
+            source = field.get("source", "sign")
+            html_width_px, html_height_px = html_canvas_sizes.get(source, html_canvas_sizes["sign"])
+
+            # Conversion proportionnelle
+            x_pdf = x_html * pdf_width / html_width_px
+            # Pour la baseline, on ajoute font_size à y_html pour placer la baseline juste sous le haut de la zone
+            y_pdf = pdf_height - ((y_html + font_size) * pdf_height / html_height_px)
+
             can.setFont("Helvetica-Bold", font_size)
-            can.setFillColorRGB(0, 0, 0)
+            can.setFillColorRGB(0, 0, 0)  # noir
             can.drawString(x_pdf, y_pdf, value)
-            
-            print(f"[STATICTEXT] '{value}' placé à PDF({x_pdf:.2f},{y_pdf:.2f})")
+
+            print(f"[STATICTEXT] '{value}' source={source} html({x_html:.2f},{y_html:.2f}) => PDF({x_pdf:.2f},{y_pdf:.2f}) "
+                  f"[HTML canvas {html_width_px}x{html_height_px}, PDF {pdf_width}x{pdf_height}]")
 
     can.save()
     packet.seek(0)
@@ -157,7 +154,7 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
         if i == 0:
             page.merge_page(overlay_pdf.pages[0])
         writer.add_page(page)
-    
+
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
 
