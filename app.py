@@ -93,7 +93,9 @@ def apply_static_text_fields(
     pdf_path,
     fields,
     output_path=None,
-    page_num=0
+    page_num=0,
+    offset_x=0,  # offset global pour tous les statictext
+    offset_y=0
 ):
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
@@ -103,11 +105,6 @@ def apply_static_text_fields(
         "index": (596.6, 846.6),
         "sign": (931.5, 1264),
     }
-
-    def html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height):
-        x_pdf = x_px * pdf_width / html_width_px
-        y_pdf = pdf_height - ((y_px + field_height) * pdf_height / html_height_px)
-        return x_pdf, y_pdf
 
     pdf_reader = PdfReader(pdf_path)
     page = pdf_reader.pages[page_num]
@@ -124,20 +121,15 @@ def apply_static_text_fields(
             value = field.get("value", "")
             source = field.get("source", "sign")
             html_width_px, html_height_px = html_canvas_sizes.get(source, html_canvas_sizes["sign"])
-            field_height = field.get("h", 40)
-            font_size = field.get("font_size", 14)  # <--- Permet d'adapter la taille du texte si besoin
+            font_size = field.get("font_size", 14)  # même partout pour homogénéité
 
-            x_pdf, y_pdf = html_to_pdf_coords(
-                x_html, y_html, field_height,
-                html_width_px, html_height_px,
-                pdf_width, pdf_height
-            )
-            y_pdf += field_height - font_size
-
-            # Offset individuel par champ (exemple : selon hauteur ou selon données du front)
-            offset_x = field.get("offset_x", 40)
-            offset_y = field.get("offset_y", -50)
-
+            # Placement coin haut-gauche, produit en croix
+            x_pdf = x_html * pdf_width / html_width_px
+            y_pdf = pdf_height - (y_html * pdf_height / html_height_px)
+            # Décale pour placer le haut du texte comme sur le front
+            y_pdf -= font_size
+            
+            # === OFFSET GLOBAL ICI ===
             x_pdf += offset_x
             y_pdf += offset_y
 
