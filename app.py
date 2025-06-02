@@ -94,8 +94,8 @@ def apply_static_text_fields(
     fields,
     output_path=None,
     page_num=0,
-    offset_x=0,  # offset global pour tous les statictext
-    offset_y=0
+    offset_x=50,  # offset global pour tous les statictext
+    offset_y=-80
 ):
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
