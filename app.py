@@ -227,8 +227,8 @@ def define_fields():
     # Valeurs fixes du canvas HTML utilisé pour placer les zones (doivent matcher le front)
     html_width_px = 931.5
     html_height_px = 1250
-    apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px)
-    session_data = {
+    apply_static_text_fields(pdf_path, fields, output_path=None)
+    sessiondata = {
         'pdf': data['pdf'],
         'fields': fields,
         'email_message': message,
