@@ -118,17 +118,18 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
             source = field.get("source", "sign")
             html_width_px, html_height_px = html_canvas_sizes.get(source, html_canvas_sizes["sign"])
 
-            # Produit en croix pur, sans correction de baseline !
+            # Produit en croix pour X et Y
             x_pdf = x_html * pdf_width / html_width_px
-            y_pdf = pdf_height - (y_html * pdf_height / html_height_px)
+            # Décale de -font_size pour que le haut du texte corresponde au Y attendu
+            y_pdf = pdf_height - (y_html * pdf_height / html_height_px) - font_size
 
             can.setFont("Helvetica-Bold", font_size)
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
 
             print(
-                f"[STATICTEXT] '{value}' HTML({x_html},{y_html}) => PDF({x_pdf:.2f},{y_pdf:.2f})"
-                f" [HTML {html_width_px}x{html_height_px}, PDF {pdf_width}x{pdf_height}]"
+                f"[STATICTEXT] '{value}' HTML({x_html},{y_html}) => PDF({x_pdf:.2f},{y_pdf:.2f}) "
+                f"[front {html_width_px}x{html_height_px}, pdf {pdf_width}x{pdf_height}]"
             )
 
     can.save()
