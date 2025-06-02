@@ -94,8 +94,8 @@ def apply_static_text_fields(
     fields,
     output_path=None,
     page_num=0,
-    offset_x=30,  # Décalage horizontal (ex: -10 pour aller à gauche)
-    offset_y=-20   # Décalage vertical (ex: -10 pour descendre)
+    offset_x=70,  # Décalage horizontal (ex: -10 pour aller à gauche)
+    offset_y=-50   # Décalage vertical (ex: -10 pour descendre)
 ):
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
