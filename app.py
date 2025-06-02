@@ -157,6 +157,7 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
 
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
+
 @app.route('/')
 def index():
     sessions = {}
@@ -228,15 +229,16 @@ def define_fields():
     html_width_px = 931.5
     html_height_px = 1250
     apply_static_text_fields(pdf_path, fields, output_path=None)
-    sessiondata = {
+    session_data = {
         'pdf': data['pdf'],
         'fields': fields,
         'email_message': message,
         'nom_demande': nom_demande
     }
-    with open(os.path.join(SESSION_FOLDER, f"{session_id}.json"), 'w') as f:
+    session_file_path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
+    with open(session_file_path, 'w') as f:
         json.dump(session_data, f)
-        send_email(session_id, step=0)
+    send_email(session_id, step=0)
     return render_template("notified.html", session_id=session_id)
 
 @app.route('/sign/<session_id>/<int:step>')
@@ -319,8 +321,15 @@ def status(session_id):
 
 def send_email(session_id, step):
     session_file = os.path.join(SESSION_FOLDER, f"{session_id}.json")
+    if not os.path.isfile(session_file) or os.path.getsize(session_file) == 0:
+        print("Le fichier de session est vide ou absent.")
+        return
     with open(session_file) as f:
-        data = json.load(f)
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            print("Erreur : fichier JSON vide ou corrompu")
+            return
     recipient = next((fld['email'] for fld in data['fields'] if fld.get('step', 0) == step and fld["type"] != "statictext"), None)
     if not recipient:
         return
