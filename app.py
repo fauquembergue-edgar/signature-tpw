@@ -236,7 +236,7 @@ def define_fields():
     }
     with open(os.path.join(SESSION_FOLDER, f"{session_id}.json"), 'w') as f:
         #json.dump(session_data, f)
-    send_email(session_id, step=0)
+        send_email(session_id, step=0)
     return render_template("notified.html", session_id=session_id)
 
 @app.route('/sign/<session_id>/<int:step>')
