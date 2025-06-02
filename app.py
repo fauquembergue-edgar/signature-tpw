@@ -135,8 +135,8 @@ def apply_static_text_fields(
             y_pdf += field_height - font_size
 
             # Offset individuel par champ (exemple : selon hauteur ou selon données du front)
-            offset_x = field.get("offset_x", 0)
-            offset_y = field.get("offset_y", 0)
+            offset_x = field.get("offset_x", 40)
+            offset_y = field.get("offset_y", -50)
 
             x_pdf += offset_x
             y_pdf += offset_y
