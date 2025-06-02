@@ -107,6 +107,7 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
     import io
+    from reportlab.pdfbase import pdfmetrics
 
     html_canvas_sizes = {
         "index": (596.6, 846.6),
@@ -137,19 +138,23 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
             y_pdf_html_top = y_html * pdf_height / html_height_px
             y_pdf = pdf_height - y_pdf_html_top  # Coin haut-gauche HTML = coin haut-gauche PDF
 
-            # Décaler pour placer le texte par le coin haut-gauche (drawString place sur la baseline)
-            can.setFont("Helvetica-Bold", font_size)
-            ascent = can._font.ascender / 1000 * font_size  # Ascender réel de la police
+            # Récupérer ascender via pdfmetrics
+            font_name = "Helvetica-Bold"
+            can.setFont(font_name, font_size)
+            face = pdfmetrics.getFont(font_name).face
+            ascent = face.ascent / 1000 * font_size
+
+            # Décaler pour placer le texte par le coin haut-gauche
             y_pdf = y_pdf - ascent
 
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
 
-            # DEBUG : dessine un repère rectangle à la position visée
+            # DEBUG : rectangle à la position visée
             debug = False
             if debug:
                 can.setStrokeColorRGB(1, 0, 0)
-                txt_width = can.stringWidth(value, "Helvetica-Bold", font_size)
+                txt_width = can.stringWidth(value, font_name, font_size)
                 can.rect(x_pdf, y_pdf, txt_width, font_size, fill=0)
 
             print(
