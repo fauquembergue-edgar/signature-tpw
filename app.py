@@ -112,29 +112,22 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
             x_html = field.get("x", 0)
             y_html = field.get("y", 0)
             value = field.get("value", "")
-            font_size = 15  # doit matcher la taille du front
+            font_size = 15  # Adapter à la taille utilisée dans le front
 
             # Source des coordonnées (index ou sign)
             source = field.get("source", "sign")
             html_width_px, html_height_px = html_canvas_sizes.get(source, html_canvas_sizes["sign"])
-            field_height = field.get("h", 40)  # Assure-toi de passer la même hauteur qu'en front
 
-            # Conversion proportionnelle (même logique que apply_text)
-            scale_x = pdf_width / html_width_px
-            scale_y = pdf_height / html_height_px
-            x_pdf = x_html * scale_x
-            y_pdf = (html_height_px - y_html - field_height) * scale_y
-
-            # Décalage baseline (même que apply_text)
-            y_pdf += field_height - font_size
+            # Produit en croix pur, sans correction de baseline !
+            x_pdf = x_html * pdf_width / html_width_px
+            y_pdf = pdf_height - (y_html * pdf_height / html_height_px)
 
             can.setFont("Helvetica-Bold", font_size)
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
 
-            # (optionnel) Debug print
             print(
-                f"[STATICTEXT] '{value}' source={source} html({x_html},{y_html}) h={field_height} => PDF({x_pdf:.2f},{y_pdf:.2f})"
+                f"[STATICTEXT] '{value}' HTML({x_html},{y_html}) => PDF({x_pdf:.2f},{y_pdf:.2f})"
                 f" [HTML {html_width_px}x{html_height_px}, PDF {pdf_width}x{pdf_height}]"
             )
 
