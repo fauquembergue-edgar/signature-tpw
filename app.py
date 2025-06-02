@@ -134,19 +134,27 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
 
             # Conversion proportionnelle
             x_pdf = x_html * pdf_width / html_width_px
+            y_pdf_html_top = y_html * pdf_height / html_height_px
+            y_pdf = pdf_height - y_pdf_html_top  # Coin haut-gauche HTML = coin haut-gauche PDF
 
-            # Pour placer à partir du coin haut-gauche (comme HTML)
-            # En ReportLab, y=0 est en bas, donc il faut inverser + descendre de la hauteur du texte
-            y_pdf = pdf_height - (y_html * pdf_height / html_height_px) - font_size
-
+            # Décaler pour placer le texte par le coin haut-gauche (drawString place sur la baseline)
             can.setFont("Helvetica-Bold", font_size)
+            ascent = can._font.ascender / 1000 * font_size  # Ascender réel de la police
+            y_pdf = y_pdf - ascent
+
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
 
-            # Debug
+            # DEBUG : dessine un repère rectangle à la position visée
+            debug = False
+            if debug:
+                can.setStrokeColorRGB(1, 0, 0)
+                txt_width = can.stringWidth(value, "Helvetica-Bold", font_size)
+                can.rect(x_pdf, y_pdf, txt_width, font_size, fill=0)
+
             print(
                 f"[STATICTEXT] '{value}' source={source} html({x_html:.2f},{y_html:.2f}) => PDF({x_pdf:.2f},{y_pdf:.2f}) "
-                f"[HTML canvas {html_width_px}x{html_height_px}, PDF {pdf_width}x{pdf_height}]"
+                f"[HTML canvas {html_width_px}x{html_height_px}, PDF {pdf_width}x{pdf_height}] (ascent={ascent:.2f})"
             )
 
     can.save()
