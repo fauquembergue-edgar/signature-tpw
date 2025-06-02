@@ -104,8 +104,6 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
 def apply_static_text_fields(pdf_path, fields, output_path=None):
-
-    # Dictionnaire des tailles d'origine (html_width_px, html_height_px)
     html_canvas_sizes = {
         "index": (596.6, 846.6),
         "sign": (931.5, 1264),
@@ -120,23 +118,31 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
 
     for field in fields:
-        if field["type"] == "statictext":
+        if field.get("type") == "statictext":
             x_html = field.get("x", 0)
             y_html = field.get("y", 0)
             value = field.get("value", "")
-            font_size = 15
+            font_size = 15  # à ajuster si tu utilises une autre taille en front
 
-            # Détermine la provenance des coordonnées (index ou sign)
+            # Déterminer la source des coordonnées (index ou sign), défaut à "sign"
             source = field.get("source", "sign")
             html_width_px, html_height_px = html_canvas_sizes.get(source, html_canvas_sizes["sign"])
 
             # Conversion proportionnelle
             x_pdf = x_html * pdf_width / html_width_px
-            y_pdf = pdf_height - ((y_html + font_size) * pdf_height / html_height_px)
+
+            # Placement baseline : ajuste le coefficient pour affiner le rendu visuel si besoin
+            y_pdf = pdf_height - ((y_html + font_size * 0.8) * pdf_height / html_height_px)
 
             can.setFont("Helvetica-Bold", font_size)
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
+
+            # (optionnel) Debug print pour vérifier le placement
+            print(
+                f"[STATICTEXT] '{value}' source={source} html({x_html:.2f},{y_html:.2f}) => PDF({x_pdf:.2f},{y_pdf:.2f}) "
+                f"[HTML canvas {html_width_px}x{html_height_px}, PDF {pdf_width}x{pdf_height}]"
+            )
 
     can.save()
     packet.seek(0)
@@ -151,7 +157,6 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
 
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
-
 @app.route('/')
 def index():
     sessions = {}
