@@ -235,7 +235,7 @@ def define_fields():
         'nom_demande': nom_demande
     }
     with open(os.path.join(SESSION_FOLDER, f"{session_id}.json"), 'w') as f:
-        json.dump(session_data, f)
+        #json.dump(session_data, f)
     send_email(session_id, step=0)
     return render_template("notified.html", session_id=session_id)
 
