@@ -105,8 +105,7 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
 
 def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, output_path=None):
     """
-    Place les statictext exactement comme la zone bleue dans sign.html,
-    avec une petite marge à gauche et un ajustement vertical pour la baseline.
+    Place les statictext avec les mêmes calculs de coordonnées que les autres champs
     """
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
@@ -124,24 +123,29 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
         if field["type"] == "statictext":
             x_html = field.get("x", 0)
             y_html = field.get("y", 0)
-            w_html = field.get("w", 100)
             h_html = field.get("h", 40)
             value = field.get("value", "")
-            font_size = 15  # doit matcher le front
-
-            # Marge pour ne pas coller au bord (simule la bordure/marge CSS)
-            margin_left = 10  # px (ajuste selon rendu)
-            margin_top = 10   # px (ajuste selon rendu)
-
-            # Conversion coordonnées
-            x_pdf = (x_html + margin_left) * pdf_width / html_width_px
-            # Pour y : on part du haut du PDF, on descend jusqu'à y_html + margin_top,
-            # puis on retire la hauteur de police pour placer la baseline juste en dessous du haut de zone
-            y_pdf = pdf_height - ((y_html + margin_top) * pdf_height / html_height_px) - font_size * 0.2
-
+            font_size = 15
+            
+            # Utiliser la même fonction de conversion que pour les autres champs
+            x_pdf, y_pdf = html_to_pdf_coords(
+                x_html, y_html, h_html, 
+                html_width_px, html_height_px, 
+                pdf_width, pdf_height
+            )
+            
+            # Ajuster la position Y pour la baseline du texte
+            # (similaire à apply_text)
+            y_pdf += h_html - font_size
+            
+            # Ajouter une petite marge à gauche pour éviter de coller au bord
+            x_pdf += 5
+            
             can.setFont("Helvetica-Bold", font_size)
-            can.setFillColorRGB(0, 0, 0)  # NOIR
+            can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
+            
+            print(f"[STATICTEXT] '{value}' placé à PDF({x_pdf:.2f},{y_pdf:.2f})")
 
     can.save()
     packet.seek(0)
@@ -153,6 +157,7 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, ou
         if i == 0:
             page.merge_page(overlay_pdf.pages[0])
         writer.add_page(page)
+    
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
 
