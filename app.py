@@ -92,6 +92,7 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
 def apply_static_text_fields(pdf_path, fields, output_path=None):
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
+    from reportlab.pdfbase import pdfmetrics
     import io
 
     html_canvas_sizes = {
@@ -113,6 +114,8 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
             y_html = field.get("y", 0)
             value = field.get("value", "")
             font_size = 15  # Adapter à la taille utilisée dans le front
+            font_name = "Helvetica-Bold"
+            can.setFont(font_name, font_size)
 
             # Source des coordonnées (index ou sign)
             source = field.get("source", "sign")
@@ -120,12 +123,18 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
 
             # Produit en croix pour X et Y
             x_pdf = x_html * pdf_width / html_width_px
-            # Décale de -font_size pour que le haut du texte corresponde au Y attendu
-            y_pdf = pdf_height - (y_html * pdf_height / html_height_px) - font_size
 
-            can.setFont("Helvetica-Bold", font_size)
+            # Correction de la baseline avec ascender réel de la police
+            face = pdfmetrics.getFont(font_name).face
+            ascent = face.ascent / 1000 * font_size
+            y_pdf = pdf_height - (y_html * pdf_height / html_height_px) - ascent
+
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
+
+            # Debug visuel (rectangle à la position calculée)
+            # can.setStrokeColorRGB(1, 0, 0)
+            # can.rect(x_pdf, y_pdf, 80, font_size, fill=0)
 
             print(
                 f"[STATICTEXT] '{value}' HTML({x_html},{y_html}) => PDF({x_pdf:.2f},{y_pdf:.2f}) "
