@@ -89,10 +89,8 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, output_path=None):
+def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
     from reportlab.pdfgen import canvas as pdfcanvas
-    from PyPDF2 import PdfReader, PdfWriter
-    from reportlab.pdfbase import pdfmetrics
     import io
 
     html_canvas_sizes = {
@@ -100,8 +98,15 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
         "sign": (931.5, 1264),
     }
 
+    def html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height):
+        x_pdf = x_px * pdf_width / html_width_px
+        y_pdf = pdf_height - ((y_px + field_height) * pdf_height / html_height_px)
+        return x_pdf, y_pdf
+
+    # Récupère la taille PDF de la bonne page
+    from PyPDF2 import PdfReader
     pdf_reader = PdfReader(pdf_path)
-    page = pdf_reader.pages[0]
+    page = pdf_reader.pages[page_num]
     pdf_width = float(page.mediabox.width)
     pdf_height = float(page.mediabox.height)
 
@@ -113,42 +118,38 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
             x_html = field.get("x", 0)
             y_html = field.get("y", 0)
             value = field.get("value", "")
-            font_size = 15  # Adapter à la taille utilisée dans le front
-            font_name = "Helvetica-Bold"
-            can.setFont(font_name, font_size)
-
-            # Source des coordonnées (index ou sign)
             source = field.get("source", "sign")
             html_width_px, html_height_px = html_canvas_sizes.get(source, html_canvas_sizes["sign"])
+            field_height = field.get("h", 40)  # même valeur que le front
+            font_size = 14  # même valeur que le front
 
-            # Produit en croix pour X et Y
-            x_pdf = x_html * pdf_width / html_width_px
+            x_pdf, y_pdf = html_to_pdf_coords(
+                x_html, y_html, field_height,
+                html_width_px, html_height_px,
+                pdf_width, pdf_height
+            )
+            y_pdf += field_height - font_size
 
-            # Correction de la baseline avec ascender réel de la police
-            face = pdfmetrics.getFont(font_name).face
-            ascent = face.ascent / 1000 * font_size
-            y_pdf = pdf_height - (y_html * pdf_height / html_height_px) - ascent
-
+            can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
 
-            # Debug visuel (rectangle à la position calculée)
+            # Debug : rectangle à la zone attendue
             # can.setStrokeColorRGB(1, 0, 0)
             # can.rect(x_pdf, y_pdf, 80, font_size, fill=0)
 
-            print(
-                f"[STATICTEXT] '{value}' HTML({x_html},{y_html}) => PDF({x_pdf:.2f},{y_pdf:.2f}) "
-                f"[front {html_width_px}x{html_height_px}, pdf {pdf_width}x{pdf_height}]"
-            )
+            print(f"[STATIC] src={source} html=({x_html},{y_html}) h={field_height} canvas={html_width_px}x{html_height_px} => PDF=({x_pdf:.2f},{y_pdf:.2f})")
 
     can.save()
     packet.seek(0)
 
+    # Merge overlay
+    from PyPDF2 import PdfWriter
     overlay_pdf = PdfReader(packet)
     writer = PdfWriter()
     for i, p in enumerate(pdf_reader.pages):
         page = p
-        if i == 0:
+        if i == page_num:
             page.merge_page(overlay_pdf.pages[0])
         writer.add_page(page)
 
