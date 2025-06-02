@@ -103,7 +103,7 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, output_path=None)
+def apply_static_text_fields(pdf_path, fields, output_path=None):
 
     # Dictionnaire des tailles d'origine (html_width_px, html_height_px)
     html_canvas_sizes = {
