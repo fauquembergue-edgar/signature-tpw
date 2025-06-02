@@ -93,9 +93,7 @@ def apply_static_text_fields(
     pdf_path,
     fields,
     output_path=None,
-    page_num=0,
-    offset_x=120,  # Décalage horizontal (ex: -10 pour aller à gauche)
-    offset_y=-38   # Décalage vertical (ex: -10 pour descendre)
+    page_num=0
 ):
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
@@ -127,7 +125,7 @@ def apply_static_text_fields(
             source = field.get("source", "sign")
             html_width_px, html_height_px = html_canvas_sizes.get(source, html_canvas_sizes["sign"])
             field_height = field.get("h", 40)
-            font_size = 14
+            font_size = field.get("font_size", 14)  # <--- Permet d'adapter la taille du texte si besoin
 
             x_pdf, y_pdf = html_to_pdf_coords(
                 x_html, y_html, field_height,
@@ -136,9 +134,12 @@ def apply_static_text_fields(
             )
             y_pdf += field_height - font_size
 
-            # Application des offsets
-            x_pdf += offset_x  # négatif = vers la gauche
-            y_pdf += offset_y  # négatif = vers le bas
+            # Offset individuel par champ (exemple : selon hauteur ou selon données du front)
+            offset_x = field.get("offset_x", 0)
+            offset_y = field.get("offset_y", 0)
+
+            x_pdf += offset_x
+            y_pdf += offset_y
 
             can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
