@@ -89,25 +89,10 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
-def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15):
-    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, size, html_width_px, html_height_px, pdf_width, pdf_height)
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    can.rect(x_pdf, y_pdf, size, size)
-    if checked:
-        can.setLineWidth(2)
-        can.line(x_pdf, y_pdf, x_pdf + size, y_pdf + size)
-        can.line(x_pdf, y_pdf + size, x_pdf + size, y_pdf)
-    can.save()
-    packet.seek(0)
-    merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
-
 def apply_static_text_fields(pdf_path, fields, output_path=None):
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
     import io
-    from reportlab.pdfbase import pdfmetrics
 
     html_canvas_sizes = {
         "index": (596.6, 846.6),
@@ -129,37 +114,28 @@ def apply_static_text_fields(pdf_path, fields, output_path=None):
             value = field.get("value", "")
             font_size = 15  # doit matcher la taille du front
 
-            # Source des coordonnées
+            # Source des coordonnées (index ou sign)
             source = field.get("source", "sign")
             html_width_px, html_height_px = html_canvas_sizes.get(source, html_canvas_sizes["sign"])
+            field_height = field.get("h", 40)  # Assure-toi de passer la même hauteur qu'en front
 
-            # Conversion proportionnelle
-            x_pdf = x_html * pdf_width / html_width_px
-            y_pdf_html_top = y_html * pdf_height / html_height_px
-            y_pdf = pdf_height - y_pdf_html_top  # Coin haut-gauche HTML = coin haut-gauche PDF
+            # Conversion proportionnelle (même logique que apply_text)
+            scale_x = pdf_width / html_width_px
+            scale_y = pdf_height / html_height_px
+            x_pdf = x_html * scale_x
+            y_pdf = (html_height_px - y_html - field_height) * scale_y
 
-            # Récupérer ascender via pdfmetrics
-            font_name = "Helvetica-Bold"
-            can.setFont(font_name, font_size)
-            face = pdfmetrics.getFont(font_name).face
-            ascent = face.ascent / 1000 * font_size
+            # Décalage baseline (même que apply_text)
+            y_pdf += field_height - font_size
 
-            # Décaler pour placer le texte par le coin haut-gauche
-            y_pdf = y_pdf - ascent
-
+            can.setFont("Helvetica-Bold", font_size)
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
 
-            # DEBUG : rectangle à la position visée
-            debug = False
-            if debug:
-                can.setStrokeColorRGB(1, 0, 0)
-                txt_width = can.stringWidth(value, font_name, font_size)
-                can.rect(x_pdf, y_pdf, txt_width, font_size, fill=0)
-
+            # (optionnel) Debug print
             print(
-                f"[STATICTEXT] '{value}' source={source} html({x_html:.2f},{y_html:.2f}) => PDF({x_pdf:.2f},{y_pdf:.2f}) "
-                f"[HTML canvas {html_width_px}x{html_height_px}, PDF {pdf_width}x{pdf_height}] (ascent={ascent:.2f})"
+                f"[STATICTEXT] '{value}' source={source} html({x_html},{y_html}) h={field_height} => PDF({x_pdf:.2f},{y_pdf:.2f})"
+                f" [HTML {html_width_px}x{html_height_px}, PDF {pdf_width}x{pdf_height}]"
             )
 
     can.save()
