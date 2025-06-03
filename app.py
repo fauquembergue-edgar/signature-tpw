@@ -94,14 +94,13 @@ def apply_static_text_fields(
     fields,
     output_path=None,
     page_num=0,
-    offset_x=60,   # Décalage horizontal en points PDF (modifiable)
-    offset_y=-30   # Décalage vertical en points PDF (modifiable, négatif pour descendre)
+    offset_x=60,
+    offset_y=-30
 ):
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
     import io
 
-    # Dimensions du canvas FRONT (HTML) : à adapter si besoin !
     html_width = 892
     html_height = 1262
 
@@ -120,17 +119,13 @@ def apply_static_text_fields(
             value = field.get("value", "")
             font_size = field.get("font_size", 14)
 
-            # Produit en croix pour X
             x_pdf = x_html * pdf_width / html_width
-            # Produit en croix pour Y avec inversion Y pour PDF (origine bas-gauche)
             y_pdf = pdf_height - (y_html * pdf_height / html_height)
+            y_pdf -= font_size * 0.2  # optionnel, pour ajustement haut du texte
 
-            # Ajout des offsets fixes (PDF)
+            # Offsets manuels
             x_pdf += offset_x
             y_pdf += offset_y
-
-            # Ajustement éventuel pour aligner le haut du texte selon la police
-            y_pdf -= font_size * 0.2
 
             can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
