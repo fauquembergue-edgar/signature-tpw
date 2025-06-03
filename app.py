@@ -97,21 +97,24 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
     pdf_w  = float(page.mediabox.width)
     pdf_h  = float(page.mediabox.height)
 
+    html_width  = 894.0
+    html_height = 1264.0
+    scale_x = pdf_w  / html_width
+    scale_y = pdf_h  / html_height
+
     packet = io.BytesIO()
     can    = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
-
-    html_height = 1264.0
-    scale = 1
 
     for field in fields:
         if field.get("type") == "statictext":
             x_html    = float(field.get("x", 0))
             y_html    = float(field.get("y", 0))
+            h_html    = float(field.get("h", 0))
             value     = field.get("value", "")
             font_size = float(field.get("font_size", 14))
 
-            x_pdf = x_html * scale
-            y_pdf = (html_height - y_html) * scale
+            x_pdf = x_html * scale_x
+            y_pdf = pdf_h - ((y_html + h_html) * scale_y)
 
             can.setFont("Helvetica", font_size)
             can.drawString(x_pdf, y_pdf, value)
