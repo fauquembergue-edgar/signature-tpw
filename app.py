@@ -100,6 +100,9 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
     packet = io.BytesIO()
     can    = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
 
+    html_height = 1264.0
+    scale = 0.666
+
     for field in fields:
         if field.get("type") == "statictext":
             x_html    = float(field.get("x", 0))
@@ -107,8 +110,8 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
             value     = field.get("value", "")
             font_size = float(field.get("font_size", 14))
 
-            x_pdf = x_html * 0.666
-            y_pdf = y_html * 0.666
+            x_pdf = x_html * scale
+            y_pdf = (html_height - y_html) * scale
 
             can.setFont("Helvetica", font_size)
             can.drawString(x_pdf, y_pdf, value)
@@ -125,7 +128,6 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
 
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
-
         
 @app.route('/')
 def index():
