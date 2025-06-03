@@ -92,60 +92,37 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
 
+from reportlab.pdfgen import canvas as pdfcanvas
+from PyPDF2 import PdfReader, PdfWriter
+import io
+
 def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
     reader = PdfReader(pdf_path)
     page   = reader.pages[page_num]
     pdf_w  = float(page.mediabox.width)
     pdf_h  = float(page.mediabox.height)
 
-    # (Ces valeurs sont celles de votre canevas HTML)
     html_width  = 894.0
     html_height = 1264.0
-
     scale_x = pdf_w  / html_width
     scale_y = pdf_h  / html_height
 
     packet = io.BytesIO()
     can    = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
 
-    for idx, field in enumerate(fields):
-        if field.get("type") != "statictext":
-            continue
+    for field in fields:
+        if field.get("type") == "statictext":
+            x_html    = float(field.get("x", 0))
+            y_html    = float(field.get("y", 0))
+            h_html    = float(field.get("h", 0))
+            value     = field.get("value", "")
+            font_size = float(field.get("font_size", 14))
 
-        # coordonnées/tailles en pixels (HTML)
-        x_html = float(field.get("x", 0))
-        y_html = float(field.get("y", 0))
-        w_html = float(field.get("w", 0))
-        h_html = float(field.get("h", 0))
-        value     = field.get("value", "")
-        font_size = float(field.get("font_size", 14))
+            x_pdf = x_html * scale_x
+            y_pdf = pdf_h - ((y_html + h_html) * scale_y)
 
-        # → exactement la même conversion que pour apply_text :
-        x_pdf = x_html * scale_x
-        w_pdf = w_html * scale_x
-
-        y_pdf = pdf_h - ((y_html + h_html) * scale_y)
-        h_pdf = h_html * scale_y
-
-        # On crée un champ AcroForm readonly comme dans apply_text
-        field_name = f"statictext_{page_num}_{idx}"
-        can.setFont("Helvetica", font_size)
-        can.setFillColor(black)
-        can.acroForm.textfield(
-            name       = field_name,
-            x          = x_pdf,
-            y          = y_pdf,
-            width      = w_pdf,
-            height     = h_pdf,
-            value      = value,
-            fontName   = "Helvetica",
-            fontSize   = font_size,
-            textColor  = black,
-            borderStyle= 'none',
-            forceBorder= False,
-            fillColor  = None,
-            fieldFlags = 1 << 0  # ReadOnly
-        )
+            can.setFont("Helvetica", font_size)
+            can.drawString(x_pdf, y_pdf, value)
 
     can.save()
     packet.seek(0)
@@ -159,6 +136,7 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
 
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
+
         
 @app.route('/')
 def index():
