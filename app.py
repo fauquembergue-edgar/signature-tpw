@@ -56,13 +56,11 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
         with open(pdf_path, 'wb') as f:
             writer.write(f)
 
-def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_height=40, page_num=0, offset_x=0, offset_y=0):
+def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_height=40, page_num=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     font_size = 14
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
     y_pdf += field_height - font_size  # Remonter baseline du texte
-    x_pdf += offset_x
-    y_pdf += offset_y
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.setFont("Helvetica", font_size)
@@ -72,12 +70,10 @@ def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0, offset_x=0, offset_y=0):
+def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     width, height = 100, field_height
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, height, html_width_px, html_height_px, pdf_width, pdf_height)
-    x_pdf += offset_x
-    y_pdf += offset_y
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",", 1)[1]
     image_bytes = base64.b64decode(sig_data)
@@ -98,11 +94,17 @@ def apply_static_text_fields(
     fields,
     output_path=None,
     page_num=0,
-    html_width_px=892,
-    html_height_px=1262,
-    offset_x=0,
-    offset_y=0
+    offset_x=80,   # Décalage horizontal en points PDF (défaut 0)
+    offset_y=-40    # Décalage vertical en points PDF (défaut 0)
 ):
+    from reportlab.pdfgen import canvas as pdfcanvas
+    from PyPDF2 import PdfReader, PdfWriter
+    import io
+
+    # Dimensions du canvas HTML utilisé sur le front
+    html_width = 892
+    html_height = 1262
+
     pdf_reader = PdfReader(pdf_path)
     page = pdf_reader.pages[page_num]
     pdf_width = float(page.mediabox.width)
@@ -117,12 +119,10 @@ def apply_static_text_fields(
             y_html = field.get("y", 0)
             value = field.get("value", "")
             font_size = field.get("font_size", 14)
-            field_height = field.get("h", 40)
 
-            x_pdf, y_pdf = html_to_pdf_coords(x_html, y_html, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
-            y_pdf += field_height - font_size  # Ajustement baseline texte
-            x_pdf += offset_x
-            y_pdf += offset_y
+            # Mapping linéaire + offset
+            x_pdf = x_html * pdf_width / html_width + offset_x
+            y_pdf = pdf_height - (y_html * pdf_height / html_height) + offset_y
 
             can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
@@ -212,7 +212,7 @@ def define_fields():
     # Valeurs fixes du canvas HTML utilisé pour placer les zones (doivent matcher le front)
     html_width_px = 931.5
     html_height_px = 1250
-    apply_static_text_fields(pdf_path, fields, output_path=None, html_width_px=html_width_px, html_height_px=html_height_px)
+    apply_static_text_fields(pdf_path, fields, output_path=None)
     session_data = {
         'pdf': data['pdf'],
         'fields': fields,
@@ -257,18 +257,16 @@ def fill_field():
     y_px = data['y_px']
     html_width_px = data['html_width_px']
     html_height_px = data['html_height_px']
-    offset_x = data.get('offset_x', 0)
-    offset_y = data.get('offset_y', 0)
 
     if field['type'] == 'signature':
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_path, field['value'], new_pdf_path, x_px, y_px, html_width_px, html_height_px, field_height=field_height, page_num=page_num, offset_x=offset_x, offset_y=offset_y)
+        apply_signature(pdf_path, field['value'], new_pdf_path, x_px, y_px, html_width_px, html_height_px, field_height=field_height, page_num=page_num)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
         apply_checkbox(pdf_path, x_px, y_px, data['value'] in ['true','on','1', True], html_width_px, html_height_px, field_height=field_height, page_num=page_num)
     else:
-        apply_text(pdf_path, x_px, y_px, data['value'], html_width_px, html_height_px, field_height=field_height, page_num=page_num, offset_x=offset_x, offset_y=offset_y)
+        apply_text(pdf_path, x_px, y_px, data['value'], html_width_px, html_height_px, field_height=field_height, page_num=page_num)
 
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
