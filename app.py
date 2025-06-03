@@ -101,7 +101,7 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
     can    = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
 
     html_height = 1264.0
-    scale = 0.666
+    scale = 1
 
     for field in fields:
         if field.get("type") == "statictext":
