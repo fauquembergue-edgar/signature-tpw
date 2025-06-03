@@ -92,67 +92,30 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
 
 
 def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
-    """
-    Place les champs de type 'statictext' sur la page `page_num` 
-    du PDF situé à `pdf_path`, en alignant chaque texte sur son sommet
-    (et non sur sa baseline). 
-    On suppose toujours un canvas HTML à 894×1264 px, 
-    et un PDF à 596.6×846.6 pts (taille renvoyée par mediabox).
-    """
-
-    # 1) Lecture du PDF et récupération de sa taille en points
     reader = PdfReader(pdf_path)
     page   = reader.pages[page_num]
-    pdf_w  = float(page.mediabox.width)   # ≃ 596.6 pt
-    pdf_h  = float(page.mediabox.height)  # ≃ 846.6 pt
+    pdf_w  = float(page.mediabox.width)
+    pdf_h  = float(page.mediabox.height)
 
-    # 2) Dimensions « HTML » du canvas (fixes : 894×1264 px)
-    html_width  = 894.0
-    html_height = 1264.0
-
-    # 3) Création d'un PDF temporaire (overlay) de la taille exacte du PDF
     packet = io.BytesIO()
     can    = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
 
-    # 4) Pour chaque champ « statictext », on convertit X et Y,
-    #    puis on corrige l'alignement vertical à partir de l'ascent de la police.
     for field in fields:
         if field.get("type") == "statictext":
-            # – Coordonnées en pixels (sur canvas 894×1264)
             x_html    = float(field.get("x", 0))
             y_html    = float(field.get("y", 0))
             value     = field.get("value", "")
             font_size = float(field.get("font_size", 14))
 
-            # a) Conversion X très simple : [0..894 px] → [0..596.6 pt]
-            x_pdf = (x_html * pdf_w) / html_width
+            x_pdf = x_html * 0.666
+            y_pdf = y_html * 0.666
 
-            # b) Conversion Y du « sommet du texte » : [0..1264 px] → [0..846.6 pt]
-            #    – On considère que y_html (0 px) est le haut du canvas HTML.
-            #    – En PDF, le (0,0) est en bas à gauche, donc on fait pdf_h - (y_html * pdf_h/html_height) 
-            y_top_pdf = pdf_h - ((y_html * pdf_h) / html_height)
-
-            # c) Récupérer l’ascent de la police pour cette taille :
-            #    ReportLab donne l'ascent en « unités font » qu’il faut mettre à l’échelle.
-            #    En PDF, les métriques de Helvetica (par ex.) sont en points, 
-            #    retournées par pdfmetrics.getAscent(...)
-            ascent = pdfmetrics.getAscent("Helvetica", font_size)
-
-            # d) On place la ligne de base un peu plus bas que y_top_pdf 
-            #    pour que le sommet du texte (cap-height) coïncide avec y_top_pdf.
-            #    Attention : getAscent renvoie généralement l’ascent **en points** 
-            #    déjà à la bonne échelle de font_size.
-            y_pdf_baseline = y_top_pdf - ascent
-
-            # e) Dessin du texte (baseline)
             can.setFont("Helvetica", font_size)
-            can.drawString(x_pdf, y_pdf_baseline, value)
+            can.drawString(x_pdf, y_pdf, value)
 
-    # 5) Finalisation du canvas temporaire
     can.save()
     packet.seek(0)
 
-    # 6) Fusion de l’overlay avec le PDF d’origine (on merge uniquement la page `page_num`)
     overlay_pdf = PdfReader(packet)
     writer      = PdfWriter()
     for i, p in enumerate(reader.pages):
@@ -160,7 +123,6 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
             p.merge_page(overlay_pdf.pages[0])
         writer.add_page(p)
 
-    # 7) Écriture du résultat (remplace le PDF d’origine si output_path est None)
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
 
