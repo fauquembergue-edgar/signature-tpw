@@ -93,17 +93,19 @@ def apply_static_text_fields(
     pdf_path,
     fields,
     output_path=None,
-    page_num=0
+    page_num=0,
+    offset_x=60,  # Décalage horizontal par défaut : 60 points à droite
+    offset_y=-30  # Décalage vertical par défaut : 30 points vers le bas (négatif pour descendre)
 ):
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
     import io
 
-    # Ratio calculé à partir de tes zones dynamiques
+    # Ratios calculés selon tes exemples (à adapter si besoin)
     ratio_x = 0.6667
     ratio_y = 0.6667
 
-    font_size = 14  # à adapter selon ton cas
+    font_size = 14  # à adapter si besoin
 
     pdf_reader = PdfReader(pdf_path)
     page = pdf_reader.pages[page_num]
@@ -119,11 +121,9 @@ def apply_static_text_fields(
             y_front = field.get("y", 0)
             value = field.get("value", "")
 
-            x_pdf = x_front * ratio_x
-            # INVERSION DE L'AXE Y POUR ORIGINE HAUT-GAUCHE
-            y_pdf = pdf_height - (y_front * ratio_y)
-            # Ajuste selon la baseline de la police
-            y_pdf -= font_size * 0.2
+            x_pdf = x_front * ratio_x + offset_x  # Décalage à droite
+            # Inversion de l'axe Y + décalage vers le bas
+            y_pdf = pdf_height - (y_front * ratio_y) + offset_y
 
             can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
