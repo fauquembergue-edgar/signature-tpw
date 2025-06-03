@@ -99,11 +99,11 @@ def apply_static_text_fields(
     from PyPDF2 import PdfReader, PdfWriter
     import io
 
-    # Calculs faits à partir de tes exemples
-    ratio_x = 0.6667  # rapport X entre front et PDF
-    ratio_y = 0.6667  # rapport Y entre front et PDF
+    # Ratio calculé à partir de tes zones dynamiques
+    ratio_x = 0.6667
+    ratio_y = 0.6667
 
-    font_size = 14  # adapte si besoin
+    font_size = 14  # à adapter selon ton cas
 
     pdf_reader = PdfReader(pdf_path)
     page = pdf_reader.pages[page_num]
@@ -119,12 +119,11 @@ def apply_static_text_fields(
             y_front = field.get("y", 0)
             value = field.get("value", "")
 
-            # Applique le même rapport que pour les zones dynamiques
             x_pdf = x_front * ratio_x
-            y_pdf = y_front * ratio_y
-
-            # Pour aligner le haut du texte sur le PDF comme sur le front, on décale de la hauteur de la police
-            y_pdf = y_pdf - font_size
+            # INVERSION DE L'AXE Y POUR ORIGINE HAUT-GAUCHE
+            y_pdf = pdf_height - (y_front * ratio_y)
+            # Ajuste selon la baseline de la police
+            y_pdf -= font_size * 0.2
 
             can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
