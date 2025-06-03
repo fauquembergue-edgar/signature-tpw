@@ -89,58 +89,60 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
-def apply_static_text_fields(
-    pdf_path,
-    fields,
-    output_path=None,
-    page_num=0,
-    offset_x=80,   # Décalage horizontal en points PDF (défaut 0)
-    offset_y=-40    # Décalage vertical en points PDF (défaut 0)
-):
-    from reportlab.pdfgen import canvas as pdfcanvas
-    from PyPDF2 import PdfReader, PdfWriter
-    import io
 
-    # Dimensions du canvas HTML utilisé sur le front
-    html_width = 892
-    html_height = 1262
+def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
 
-    pdf_reader = PdfReader(pdf_path)
-    page = pdf_reader.pages[page_num]
-    pdf_width = float(page.mediabox.width)
-    pdf_height = float(page.mediabox.height)
+    # 1) Lecture du PDF et récupération de sa taille en points
+    reader = PdfReader(pdf_path)
+    page   = reader.pages[page_num]
+    pdf_w  = float(page.mediabox.width)   # ex. ~596.6
+    pdf_h  = float(page.mediabox.height)  # ex. ~846.6
 
+    # 2) Dimensions fixes du canvas HTML (894×1264 px)
+    html_width  = 894.0
+    html_height = 1264.0
+
+    # 3) Création d'un PDF temporaire (overlay) de la taille exacte du PDF
     packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+    can    = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
 
+    # 4) Boucle sur chaque champ fournit dans `fields`
     for field in fields:
         if field.get("type") == "statictext":
-            x_html = field.get("x", 0)
-            y_html = field.get("y", 0)
-            value = field.get("value", "")
-            font_size = field.get("font_size", 14)
+            # – Coordonnées en pixels (sur le canvas 894×1264)
+            x_html    = float(field.get("x", 0))
+            y_html    = float(field.get("y", 0))
+            h_zone    = float(field.get("h", 0))       # hauteur du champ en px
+            value     = field.get("value", "")
+            font_size = float(field.get("font_size", 14))
 
-            # Mapping linéaire + offset
-            x_pdf = x_html * pdf_width / html_width + offset_x
-            y_pdf = pdf_height - (y_html * pdf_height / html_height) + offset_y
+            # a) Conversion X : [0..894 px] → [0..596.6 pt]
+            x_pdf = (x_html * pdf_w) / html_width
 
+            # b) Conversion Y : inversion du repère + prise en compte de la hauteur h_zone
+            #    – Le repère HTML (0,0) est en haut-à-gauche ; PDF en bas-à-gauche.
+            #    – On veut que le bas du champ HTML corresponde au bas du texte PDF.
+            y_pdf = pdf_h - ((y_html + h_zone) * pdf_h / html_height)
+
+            # c) Placement du texte
             can.setFont("Helvetica", font_size)
-            can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, value)
 
     can.save()
     packet.seek(0)
 
+    # 5) Fusion de l’overlay avec le PDF d’origine (seule la page `page_num` est merge)
     overlay_pdf = PdfReader(packet)
-    writer = PdfWriter()
-    for i, p in enumerate(pdf_reader.pages):
-        page = p
+    writer      = PdfWriter()
+    for i, p in enumerate(reader.pages):
         if i == page_num:
-            page.merge_page(overlay_pdf.pages[0])
-        writer.add_page(page)
+            p.merge_page(overlay_pdf.pages[0])
+        writer.add_page(p)
 
+    # 6) Écriture du résultat (remplace le PDF d’origine si output_path est None)
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
+
         
 @app.route('/')
 def index():
