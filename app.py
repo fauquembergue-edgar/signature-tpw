@@ -99,30 +99,31 @@ def apply_static_text_fields(
     from PyPDF2 import PdfReader, PdfWriter
     import io
 
-    # Ta taille de canvas FRONT d'édition
-    html_canvas_width = 892
-    html_canvas_height = 1262
+    # Calculs faits à partir de tes exemples
+    ratio_x = 0.6667  # rapport X entre front et PDF
+    ratio_y = 0.6667  # rapport Y entre front et PDF
+
+    font_size = 14  # adapte si besoin
 
     pdf_reader = PdfReader(pdf_path)
     page = pdf_reader.pages[page_num]
-    pdf_width = float(page.mediabox.width)   # ex : 595
-    pdf_height = float(page.mediabox.height) # ex : 841
+    pdf_width = float(page.mediabox.width)
+    pdf_height = float(page.mediabox.height)
 
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
 
     for field in fields:
         if field.get("type") == "statictext":
-            x_html = field.get("x", 0)      # Ex: 500
-            y_html = field.get("y", 0)      # Ex: 148
+            x_front = field.get("x", 0)
+            y_front = field.get("y", 0)
             value = field.get("value", "")
-            font_size = field.get("font_size", 14)
 
-            # Produit en croix, SANS inversion Y (pour correspondance haut-gauche)
-            x_pdf = x_html * pdf_width / html_canvas_width
-            y_pdf = y_html * pdf_height / html_canvas_height
+            # Applique le même rapport que pour les zones dynamiques
+            x_pdf = x_front * ratio_x
+            y_pdf = y_front * ratio_y
 
-            # Décaler pour placer le texte par le haut, pas la baseline
+            # Pour aligner le haut du texte sur le PDF comme sur le front, on décale de la hauteur de la police
             y_pdf = y_pdf - font_size
 
             can.setFont("Helvetica", font_size)
