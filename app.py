@@ -7,6 +7,7 @@ import base64
 from email.message import EmailMessage
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfbase import pdfmetrics
+from reportlab.lib.colors import black
 from reportlab.pdfgen import canvas as pdfcanvas
 from dotenv import load_dotenv
 import io
