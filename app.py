@@ -93,45 +93,37 @@ def apply_static_text_fields(
     pdf_path,
     fields,
     output_path=None,
-    page_num=0,
-    offset_x=90,  # offset global pour tous les statictext
-    offset_y=-40
+    page_num=0
 ):
     from reportlab.pdfgen import canvas as pdfcanvas
     from PyPDF2 import PdfReader, PdfWriter
     import io
 
-    html_canvas_sizes = {
-        "index": (596.6, 846.6),
-        "sign": (931.5, 1264),
-    }
+    # Ta taille de canvas FRONT d'édition
+    html_canvas_width = 892
+    html_canvas_height = 1262
 
     pdf_reader = PdfReader(pdf_path)
     page = pdf_reader.pages[page_num]
-    pdf_width = float(page.mediabox.width)
-    pdf_height = float(page.mediabox.height)
+    pdf_width = float(page.mediabox.width)   # ex : 595
+    pdf_height = float(page.mediabox.height) # ex : 841
 
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
 
     for field in fields:
         if field.get("type") == "statictext":
-            x_html = field.get("x", 0)
-            y_html = field.get("y", 0)
+            x_html = field.get("x", 0)      # Ex: 500
+            y_html = field.get("y", 0)      # Ex: 148
             value = field.get("value", "")
-            source = field.get("source", "sign")
-            html_width_px, html_height_px = html_canvas_sizes.get(source, html_canvas_sizes["sign"])
-            font_size = field.get("font_size", 14)  # même partout pour homogénéité
+            font_size = field.get("font_size", 14)
 
-            # Placement coin haut-gauche, produit en croix
-            x_pdf = x_html * pdf_width / html_width_px
-            y_pdf = pdf_height - (y_html * pdf_height / html_height_px)
-            # Décale pour placer le haut du texte comme sur le front
-            y_pdf -= font_size
-            
-            # === OFFSET GLOBAL ICI ===
-            x_pdf += offset_x
-            y_pdf += offset_y
+            # Produit en croix, SANS inversion Y (pour correspondance haut-gauche)
+            x_pdf = x_html * pdf_width / html_canvas_width
+            y_pdf = y_html * pdf_height / html_canvas_height
+
+            # Décaler pour placer le texte par le haut, pas la baseline
+            y_pdf = y_pdf - font_size
 
             can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
