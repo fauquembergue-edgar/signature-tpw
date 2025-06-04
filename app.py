@@ -107,43 +107,46 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
 def apply_static_text_fields(pdf_path, fields, page_num=0, output_path=None):
-    # On suppose que tous les champs de fields sont cohérents (voir ci-dessus)
-    reader = PdfReader(pdf_path)
-    pdf_width = float(reader.pages[page_num].mediabox.width)
-    pdf_height = float(reader.pages[page_num].mediabox.height)
+    pdf_w, pdf_h = get_pdf_page_size(pdf_path, page_num)
+    font_size = 14
+    # Défaut si non transmis
+    html_w, html_h = 900, 1200
 
     packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    font_size = 14
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
 
     for field in fields:
         if field.get('type') == 'statictext':
-            x = field.get('x', 0)
-            y = field.get('y', 0)
-            height = field.get('height', 40)
-            text = field.get('text', '')
-            html_w = field.get('canvas_width', 596.6)
-            html_h = field.get('canvas_height', 846.6)
+            x = float(field.get('x', 0))
+            y = float(field.get('y', 0))
+            height = float(field.get('height', 40))
+            text = str(field.get('text', ''))
 
-            x_pdf, y_pdf = html_to_pdf_coords(x, y, height, html_w, html_h, pdf_width, pdf_height)
-            y_pdf += height - font_size  # Correction pour baseline comme apply_text
+            # Prend la taille du canvas si dispo, sinon défaut
+            w_canvas = float(field.get('canvas_width', html_w))
+            h_canvas = float(field.get('canvas_height', html_h))
+
+            # Placement proportionnel UI → PDF (inversion Y incluse)
+            scale_x = pdf_w / w_canvas
+            scale_y = pdf_h / h_canvas
+            x_pdf = x * scale_x
+            y_pdf = pdf_h - (y * scale_y) - (height * scale_y)  # aligné en haut-gauche de la zone
 
             can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, text)
-            print(f"[STATIC] Draw '{text}' at PDF({x_pdf},{y_pdf})")  # DEBUG LOG
 
     can.save()
     packet.seek(0)
 
-    # Merge le overlay sur le PDF
+    # Fusionne avec le PDF original (ne plante pas si overlay vide)
     overlay_reader = PdfReader(packet)
+    reader = PdfReader(pdf_path)
     writer = PdfWriter()
     for i, page in enumerate(reader.pages):
         if i == page_num and len(overlay_reader.pages) > 0:
             page.merge_page(overlay_reader.pages[0])
         writer.add_page(page)
-
     out_path = output_path if output_path else pdf_path
     with open(out_path, 'wb') as f:
         writer.write(f)
