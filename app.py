@@ -99,8 +99,8 @@ import io
 def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
     reader = PdfReader(pdf_path)
     page   = reader.pages[page_num]
-    pdf_w  = float(page.mediabox.width)
-    pdf_h  = float(page.mediabox.height)
+    pdf_w  = 596.6
+    pdf_h  = 846.6
 
     html_width  = 894.0
     html_height = 1264.0
