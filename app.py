@@ -106,67 +106,48 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, page_num=0, output_path=None):
-    # On force des valeurs si aucune zone n'est donnée (pour TEST)
-    if not fields or not isinstance(fields, list):
-        fields = [{
-            'type': 'statictext',
-            'x': 50,
-            'y': 50,
-            'height': 50,
-            'text': 'TEXTE PAR DEFAUT'
-        }]
-    pdf_w, pdf_h = get_pdf_page_size(pdf_path, page_num)
-    font_size = 24  # FORCÉ pour que ce soit visible
-    html_w, html_h = 900, 1200  # Valeurs par défaut si rien n’est transmis
-
+def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
+    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
-
-    found = False
-    for field in fields:
-        if field.get('type') == 'statictext':
-            found = True
-            x = float(field.get('x', 0))
-            y = float(field.get('y', 0))
-            height = float(field.get('height', 50))
-            text = str(field.get('text', 'TEXTE SANS CONTENU'))
-            w_canvas = float(field.get('canvas_width', html_w))
-            h_canvas = float(field.get('canvas_height', html_h))
-
-            # Placement proportionnel UI → PDF (inversion Y incluse)
-            scale_x = pdf_w / w_canvas
-            scale_y = pdf_h / h_canvas
-            x_pdf = x * scale_x
-            y_pdf = pdf_h - (y * scale_y) - (height * scale_y)  # aligné en haut-gauche de la zone
-
-            can.setFillColorRGB(1, 0, 0)  # ROUGE pour bien voir
-            can.setFont("Helvetica-Bold", font_size)
-            can.drawString(x_pdf, y_pdf, text)
-            # Affichage DEBUG dans la console du back :
-            print(f"PLACEMENT TEXTE PDF : '{text}' aux coordonnées ({x_pdf},{y_pdf}) sur PDF {pdf_w}x{pdf_h}")
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     
-    # S'il n'y avait pas de zone, on en force une pour test :
-    if not found:
-        can.setFillColorRGB(0, 0, 1)
-        can.setFont("Helvetica-Bold", 28)
-        can.drawString(100, pdf_h - 100, "TEXTE AUTO AJOUTÉ !")
-        print("Aucune zone 'statictext' reçue, texte par défaut ajouté.")
-
+    for field in fields:
+        if field.get("type") == "statictext":
+            x_px = field.get("x", 0)
+            y_px = field.get("y", 0)
+            field_height = field.get("height", 30)
+            html_width_px = field.get("canvas_width", 900)
+            html_height_px = field.get("canvas_height", 1200)
+            text = field.get("text", "")
+            font_size = field.get("font_size", 14)
+            
+            # Conversion coordonnées UI -> PDF
+            scale_x = pdf_width / html_width_px
+            scale_y = pdf_height / html_height_px
+            x_pdf = x_px * scale_x
+            # Inversion Y et placement baseline
+            y_pdf = pdf_height - (y_px * scale_y) - (field_height * scale_y)
+            y_pdf += field_height * scale_y - font_size  # Ajuste la baseline
+            
+            can.setFont("Helvetica", font_size)
+            can.setFillColorRGB(0, 0, 0)
+            can.drawString(x_pdf, y_pdf, text)
+    
     can.save()
     packet.seek(0)
 
-    overlay_reader = PdfReader(packet)
+    # Fusionne avec le PDF d’origine
+    from PyPDF2 import PdfReader, PdfWriter
+    overlay = PdfReader(packet)
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     for i, page in enumerate(reader.pages):
-        if i == page_num and len(overlay_reader.pages) > 0:
-            page.merge_page(overlay_reader.pages[0])
+        if i == page_num and len(overlay.pages) > 0:
+            page.merge_page(overlay.pages[0])
         writer.add_page(page)
-    out_path = output_path if output_path else pdf_path
-    with open(out_path, 'wb') as f:
+    with open(output_path or pdf_path, 'wb') as f:
         writer.write(f)
-    print("Fusion terminée, texte placé sur le PDF.")
+
 
       
 @app.route('/')
