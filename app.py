@@ -92,64 +92,53 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
 
-def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15):
-    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, size, html_width_px, html_height_px, pdf_width, pdf_height)
-    packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    can.rect(x_pdf, y_pdf, size, size)
-    if checked:
-        can.setLineWidth(2)
-        can.line(x_pdf, y_pdf, x_pdf + size, y_pdf + size)
-        can.line(x_pdf, y_pdf + size, x_pdf + size, y_pdf)
-    can.save()
-    packet.seek(0)
-    merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
+from reportlab.pdfgen import canvas as pdfcanvas
+from PyPDF2 import PdfReader, PdfWriter
+import io
 
 def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
-    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    reader = PdfReader(pdf_path)
+    page   = reader.pages[page_num]
+    pdf_w  = 596.6
+    pdf_h  = 846.6
+
+    html_width  = 894.0
+    html_height = 1264.0
+    scale_x = pdf_w / html_width
+    scale_y = pdf_h / html_height
+
     packet = io.BytesIO()
-    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    
+    can    = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
+
     for field in fields:
         if field.get("type") == "statictext":
-            x_px = field.get("x", 0)
-            y_px = field.get("y", 0)
-            field_height = field.get("height", 30)
-            html_width_px = field.get("canvas_width", 894)
-            html_height_px = field.get("canvas_height", 1264)
-            text = field.get("text", "")
-            font_size = field.get("font_size", 14)
-            
-            # Conversion coordonnées UI -> PDF
-            scale_x = pdf_width / html_width_px
-            scale_y = pdf_height / html_height_px
-            x_pdf = x_px * scale_x
-            # Inversion Y et placement baseline
-            y_pdf = pdf_height - (y_px * scale_y) - (field_height * scale_y)
-            y_pdf += field_height * scale_y - font_size  # Ajuste la baseline
-            
+            x_html    = float(field.get("x", 0))
+            y_html    = float(field.get("y", 0))
+            h_html    = float(field.get("h", 0))
+            value     = field.get("value", "")
+            font_size = float(field.get("font_size", 14))
+
+            x_pdf   = x_html * scale_x
+            y_pdf   = pdf_h - ((y_html + h_html) * scale_y)
+
+
             can.setFont("Helvetica", font_size)
-            can.setFillColorRGB(0, 0, 0)
-            can.drawString(x_pdf, y_pdf, text)
-    
+            can.drawString(x_pdf, y_pdf, value)
+
     can.save()
     packet.seek(0)
 
-    # Fusionne avec le PDF d’origine
-    from PyPDF2 import PdfReader, PdfWriter
-    overlay = PdfReader(packet)
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
-    for i, page in enumerate(reader.pages):
-        if i == page_num and len(overlay.pages) > 0:
-            page.merge_page(overlay.pages[0])
-        writer.add_page(page)
-    with open(output_path or pdf_path, 'wb') as f:
+    overlay_pdf = PdfReader(packet)
+    writer      = PdfWriter()
+    for i, p in enumerate(reader.pages):
+        if i == page_num:
+            p.merge_page(overlay_pdf.pages[0])
+        writer.add_page(p)
+
+    with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
 
-
-      
+        
 @app.route('/')
 def index():
     sessions = {}
