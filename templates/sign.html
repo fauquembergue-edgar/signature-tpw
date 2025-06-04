@@ -89,14 +89,13 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
   })
 ).then(() => {
   fields.forEach((f, index) => {
-    // SUPPRESSION: AUCUN AFFICHAGE pour les zones statictext (ni zone ni texte)
+    // Pas d'affichage pour les statictext
     if (f.type === 'statictext') {
       return;
     }
 
     const zone = document.createElement('div');
     zone.className = 'zone';
-
     zone.style.left        = `${f.x}px`;
     zone.style.top         = `${f.y}px`;
     zone.style.width       = `${(f.w || 100)}px`;
@@ -130,41 +129,17 @@ function initSigCanvasMobileDesktop(canvas) {
   const ctx = canvas.getContext('2d');
   let drawing = false, last = {x: 0, y: 0};
 
-  // Retina/HDPI
-  function fixDPI() {
-    const ratio = window.devicePixelRatio || 1;
-    if (ratio !== 1) {
-      const oldW = canvas.width;
-      const oldH = canvas.height;
-      canvas.width = oldW * ratio;
-      canvas.height = oldH * ratio;
-      canvas.style.width = oldW + 'px';
-      canvas.style.height = oldH + 'px';
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.scale(ratio, ratio);
-    }
-  }
-  fixDPI();
-
   function getXY(e) {
     const rect = canvas.getBoundingClientRect();
+    let x, y;
     if (e.touches && e.touches.length === 1) {
-      return {
-        x: (e.touches[0].clientX - rect.left) * (canvas.width / rect.width),
-        y: (e.touches[0].clientY - rect.top) * (canvas.height / rect.height)
-      };
-    } else if (e.changedTouches && e.changedTouches.length === 1) {
-      return {
-        x: (e.changedTouches[0].clientX - rect.left) * (canvas.width / rect.width),
-        y: (e.changedTouches[0].clientY - rect.top) * (canvas.height / rect.height)
-      };
+      x = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
+      y = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
     } else if (e.offsetX !== undefined) {
-      return {
-        x: e.offsetX * (canvas.width / rect.width),
-        y: e.offsetY * (canvas.height / rect.height)
-      };
+      x = e.offsetX * (canvas.width / rect.width);
+      y = e.offsetY * (canvas.height / rect.height);
     }
-    return null;
+    return {x, y};
   }
 
   // Mouse events
@@ -330,7 +305,6 @@ function sendSigFile(index) {
 
 function sendSigDraw(index) {
   const canvasDraw = document.getElementById('sigCanvas');
-  // Vérifie que le canvas n'est pas vide
   const ctxDraw = canvasDraw.getContext('2d');
   const imageData = ctxDraw.getImageData(0, 0, canvasDraw.width, canvasDraw.height).data;
   let isBlank = true;
@@ -383,7 +357,7 @@ submitBtn.onclick = () => {
     body: JSON.stringify({ session_id: sessionId, message_final: finalMessage })
   }).then(() => {
     alert("Signature finalisée. Vous pouvez fermer cette page.");
-    window.location = '/'; // Ou redirige selon le flow voulu
+    // Ne pas rediriger : laisser l'utilisateur sur la page
   });
 };
 </script>
