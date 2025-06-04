@@ -73,6 +73,8 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     return page.render({ canvasContext: ctx, viewport }).promise;
+    console.log("canvas size:", pdfCanvas.width, "×", pdfCanvas.height);
+
 
   })
 ).then(() => {
