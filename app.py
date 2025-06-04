@@ -109,8 +109,8 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
 def apply_static_text_fields(
     pdf_path,
     fields,
-    html_width_px=None,
-    html_height_px=None,
+    html_width_px=894,
+    html_height_px=1264,
     page_num=0,
     output_path=None
 ):
