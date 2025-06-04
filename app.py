@@ -93,39 +93,33 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
 
 
 def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=0, offset_y=0):
-    # Lecture du PDF existant
+    # Gère le cas où il n'y a aucun champ "statictext"
+    static_fields = [f for f in fields if f.get("type") == "statictext"]
+    if not static_fields:
+        # Ne rien faire si aucun champ statictext
+        return
+
     reader = PdfReader(pdf_path)
     pdf_w, pdf_h = 596.6, 846.6  # dimensions du PDF
     offset_x, offset_y = 3, 23
 
-    # Création d'un canvas pour dessiner les textes
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
 
-    # Parcours des champs de type "statictext" et placement des textes
-    for field in fields:
-        if field.get("type") == "statictext":
-            # Récupération des données du champ (les coordonnées sont supposées être en pixels ou points issus d'une maquette HTML)
-            x_field  = float(field.get("x", 0))
-            y_field  = float(field.get("y", 0))
-            h_field  = float(field.get("h", 0))
-            value    = field.get("value", "")
-            font_size= float(field.get("font_size", 14))
-
-            # Calcul simple de la position :
-            # - On ajoute un offset horizontal si besoin.
-            # - Pour l'ordonnée, comme HTML se base sur un origine en haut et PDF sur une origine en bas,
-            #   on soustrait (y_field + h_field) à la hauteur totale du PDF, puis on y ajoute l'offset vertical.
-            x_pdf = x_field + offset_x
-            y_pdf = pdf_h - (y_field + h_field) + offset_y
-
-            can.setFont("Helvetica", font_size)
-            can.drawString(x_pdf, y_pdf, value)
+    for field in static_fields:
+        x_field  = float(field.get("x", 0))
+        y_field  = float(field.get("y", 0))
+        h_field  = float(field.get("h", 0))
+        value    = field.get("value", "")
+        font_size= float(field.get("font_size", 14))
+        x_pdf = x_field + offset_x
+        y_pdf = pdf_h - (y_field + h_field) + offset_y
+        can.setFont("Helvetica", font_size)
+        can.drawString(x_pdf, y_pdf, value)
 
     can.save()
     packet.seek(0)
 
-    # Fusion de la page overlay contenant le texte avec la page existante
     overlay_pdf = PdfReader(packet)
     writer = PdfWriter()
     for i, p in enumerate(reader.pages):
@@ -204,10 +198,12 @@ def define_fields():
             else:
                 field['h'] = 40
     pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
-    # Valeurs fixes du canvas HTML utilisé pour placer les zones (doivent matcher le front)
     html_width_px = 931.5
     html_height_px = 1250
+
+    # Applique uniquement si des champs statictext existent (sinon no-op)
     apply_static_text_fields(pdf_path, fields, output_path=None)
+
     session_data = {
         'pdf': data['pdf'],
         'fields': fields,
@@ -217,8 +213,19 @@ def define_fields():
     session_file_path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(session_file_path, 'w') as f:
         json.dump(session_data, f)
-    send_email(session_id, step=0)
-    return render_template("notified.html", session_id=session_id)
+
+    # Correction ici : on cherche s'il y a au moins un champ signable (hors statictext)
+    signable_fields = [f for f in fields if f.get('type') not in ('statictext',)]
+    if signable_fields:
+        send_email(session_id, step=0)
+        return render_template("notified.html", session_id=session_id)
+    else:
+        # Aucun champ signable : on ne lance pas le process mais on ne crash pas non plus
+        return render_template(
+            "index.html",
+            templates=[f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')],
+            sessions={}
+        )
 
 @app.route('/sign/<session_id>/<int:step>')
 def sign(session_id, step):
