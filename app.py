@@ -104,8 +104,8 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
 
     html_width  = 894.0
     html_height = 1264.0
-    scale_x = pdf_w / html_width_exact
-    scale_y = pdf_h / html_height_exact 
+    scale_x = pdf_w / html_width
+    scale_y = pdf_h / html_height
 
     packet = io.BytesIO()
     can    = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
