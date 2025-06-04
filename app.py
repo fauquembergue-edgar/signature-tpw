@@ -92,9 +92,19 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
 
-from reportlab.pdfgen import canvas as pdfcanvas
-from PyPDF2 import PdfReader, PdfWriter
-import io
+def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15):
+    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, size, html_width_px, html_height_px, pdf_width, pdf_height)
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+    can.rect(x_pdf, y_pdf, size, size)
+    if checked:
+        can.setLineWidth(2)
+        can.line(x_pdf, y_pdf, x_pdf + size, y_pdf + size)
+        can.line(x_pdf, y_pdf + size, x_pdf + size, y_pdf)
+    can.save()
+    packet.seek(0)
+    merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
 def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
     from PyPDF2 import PdfReader, PdfWriter
