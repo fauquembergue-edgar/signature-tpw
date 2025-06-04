@@ -97,6 +97,10 @@ from PyPDF2 import PdfReader, PdfWriter
 import io
 
 def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
+    from PyPDF2 import PdfReader, PdfWriter
+    from reportlab.pdfgen import canvas as pdfcanvas
+    import io
+
     reader = PdfReader(pdf_path)
     page   = reader.pages[page_num]
     pdf_w  = 596.6
@@ -118,9 +122,12 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
             value     = field.get("value", "")
             font_size = float(field.get("font_size", 14))
 
-            x_pdf   = x_html * scale_x
-            y_pdf   = pdf_h - ((y_html + h_html) * scale_y)
-
+            # Conversion des coordonnées
+            x_pdf = x_html * scale_x
+            # Correction : on part du haut (origine UI), donc
+            # y_pdf = hauteur_pdf - (y_html * scale_y) - hauteur_zone_en_pdf
+            # Option : si tu veux que le texte soit collé en haut de la zone (comme sur l’UI)
+            y_pdf = pdf_h - (y_html * scale_y) - (h_html * scale_y)
 
             can.setFont("Helvetica", font_size)
             can.drawString(x_pdf, y_pdf, value)
@@ -137,6 +144,7 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
 
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
+
 
         
 @app.route('/')
