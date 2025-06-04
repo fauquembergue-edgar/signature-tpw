@@ -106,9 +106,25 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, page_num=0, output_path=None):
+def apply_static_text_fields(
+    pdf_path,
+    fields,
+    html_width_px=None,
+    html_height_px=None,
+    page_num=0,
+    output_path=None
+):
+
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     font_size = 14
+
+    # Si pas de taille canvas donnee, la prendre dans le premier champ (bonne pratique)
+    if html_width_px is None or html_height_px is None:
+        if fields and 'canvas_width' in fields[0] and 'canvas_height' in fields[0]:
+            html_width_px = fields[0]['canvas_width']
+            html_height_px = fields[0]['canvas_height']
+        else:
+            raise ValueError("Il faut fournir html_width_px et html_height_px ou les inclure dans chaque champ")
 
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
@@ -118,12 +134,15 @@ def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, pa
             y_px = field.get('y', 0)
             field_height = field.get('height', 40)
             text = field.get('text', '')
+            # Surcharge html_w/h si disponibles dans le champ (utile pour front multiples canvases)
+            w_canvas = field.get('canvas_width', html_width_px)
+            h_canvas = field.get('canvas_height', html_height_px)
             x_pdf, y_pdf = html_to_pdf_coords(
                 x_px, y_px, field_height,
-                html_width_px, html_height_px,
+                w_canvas, h_canvas,
                 pdf_width, pdf_height
             )
-            y_pdf += field_height - font_size  # même correction baseline que apply_text
+            y_pdf += field_height - font_size  # identique à apply_text
             can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, text)
