@@ -122,8 +122,8 @@ def apply_static_text_fields(pdf_path, fields, page_num=0, output_path=None):
             y = field.get('y', 0)
             height = field.get('height', 40)
             text = field.get('text', '')
-            html_w = field.get('canvas_width', 900)
-            html_h = field.get('canvas_height', 1200)
+            html_w = field.get('canvas_width', 596.6)
+            html_h = field.get('canvas_height', 846.6)
 
             x_pdf, y_pdf = html_to_pdf_coords(x, y, height, html_w, html_h, pdf_width, pdf_height)
             y_pdf += height - font_size  # Correction pour baseline comme apply_text
