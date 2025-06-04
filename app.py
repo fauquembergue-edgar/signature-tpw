@@ -58,11 +58,12 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
         with open(pdf_path, 'wb') as f:
             writer.write(f)
 
-def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_height=40, page_num=0):
+def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_height=40, page_num=0, offset_x=0, offset_y=5):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     font_size = 14
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
-    y_pdf += field_height - font_size  # Remonter baseline du texte
+    x_pdf += offset_x
+    y_pdf += offset_y + (field_height - font_size)  # Remonter baseline du texte
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.setFont("Helvetica", font_size)
@@ -72,10 +73,12 @@ def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0):
+def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0, offset_x=0, offset_y=20):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     width, height = 100, field_height
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, height, html_width_px, html_height_px, pdf_width, pdf_height)
+    x_pdf += offset_x
+    y_pdf += offset_y
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",", 1)[1]
     image_bytes = base64.b64decode(sig_data)
@@ -91,8 +94,24 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
+def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15, offset_x=0, offset_y=0):
+    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, size, html_width_px, html_height_px, pdf_width, pdf_height)
+    x_pdf += offset_x
+    y_pdf += offset_y
+    packet = io.BytesIO()
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+    can.rect(x_pdf, y_pdf, size, size)
+    if checked:
+        can.setLineWidth(2)
+        can.line(x_pdf, y_pdf, x_pdf + size, y_pdf + size)
+        can.line(x_pdf, y_pdf + size, x_pdf + size, y_pdf)
+    can.save()
+    packet.seek(0)
+    merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=0, offset_y=0):
+
+def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=3, offset_y=23):
     # Gère le cas où il n'y a aucun champ "statictext"
     static_fields = [f for f in fields if f.get("type") == "statictext"]
     if not static_fields:
@@ -101,7 +120,6 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, off
 
     reader = PdfReader(pdf_path)
     pdf_w, pdf_h = 596.6, 846.6  # dimensions du PDF
-    offset_x, offset_y = 3, 23
 
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
