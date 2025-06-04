@@ -106,53 +106,48 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(
-    pdf_path,
-    fields,
-    html_width_px=596.6,
-    html_height_px=846.6,
-    page_num=0,
-    output_path=None
-):
-
-    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    font_size = 14
-
-    # Si pas de taille canvas donnee, la prendre dans le premier champ (bonne pratique)
-    if html_width_px is None or html_height_px is None:
-        if fields and 'canvas_width' in fields[0] and 'canvas_height' in fields[0]:
-            html_width_px = fields[0]['canvas_width']
-            html_height_px = fields[0]['canvas_height']
-        else:
-            raise ValueError("Il faut fournir html_width_px et html_height_px ou les inclure dans chaque champ")
+def apply_static_text_fields(pdf_path, fields, page_num=0, output_path=None):
+    # On suppose que tous les champs de fields sont cohérents (voir ci-dessus)
+    reader = PdfReader(pdf_path)
+    pdf_width = float(reader.pages[page_num].mediabox.width)
+    pdf_height = float(reader.pages[page_num].mediabox.height)
 
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+    font_size = 14
+
     for field in fields:
         if field.get('type') == 'statictext':
-            x_px = field.get('x', 0)
-            y_px = field.get('y', 0)
-            field_height = field.get('height', 40)
+            x = field.get('x', 0)
+            y = field.get('y', 0)
+            height = field.get('height', 40)
             text = field.get('text', '')
-            # Surcharge html_w/h si disponibles dans le champ (utile pour front multiples canvases)
-            w_canvas = field.get('canvas_width', html_width_px)
-            h_canvas = field.get('canvas_height', html_height_px)
-            x_pdf, y_pdf = html_to_pdf_coords(
-                x_px, y_px, field_height,
-                w_canvas, h_canvas,
-                pdf_width, pdf_height
-            )
-            y_pdf += field_height - font_size  # identique à apply_text
+            html_w = field.get('canvas_width', 900)
+            html_h = field.get('canvas_height', 1200)
+
+            x_pdf, y_pdf = html_to_pdf_coords(x, y, height, html_w, html_h, pdf_width, pdf_height)
+            y_pdf += height - font_size  # Correction pour baseline comme apply_text
+
             can.setFont("Helvetica", font_size)
             can.setFillColorRGB(0, 0, 0)
             can.drawString(x_pdf, y_pdf, text)
+            print(f"[STATIC] Draw '{text}' at PDF({x_pdf},{y_pdf})")  # DEBUG LOG
+
     can.save()
     packet.seek(0)
-    merge_overlay(pdf_path, packet, output_path=output_path or pdf_path, page_num=page_num)
 
+    # Merge le overlay sur le PDF
+    overlay_reader = PdfReader(packet)
+    writer = PdfWriter()
+    for i, page in enumerate(reader.pages):
+        if i == page_num and len(overlay_reader.pages) > 0:
+            page.merge_page(overlay_reader.pages[0])
+        writer.add_page(page)
 
-
-        
+    out_path = output_path if output_path else pdf_path
+    with open(out_path, 'wb') as f:
+        writer.write(f)
+      
 @app.route('/')
 def index():
     sessions = {}
