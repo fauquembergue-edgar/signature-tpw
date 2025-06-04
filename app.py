@@ -92,35 +92,31 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
 
-from reportlab.pdfgen import canvas as pdfcanvas
-from PyPDF2 import PdfReader, PdfWriter
-import io
-
-def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
+def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=0, offset_y=0):
+    # Lecture du PDF existant
     reader = PdfReader(pdf_path)
-    page   = reader.pages[page_num]
-    pdf_w  = 596.6
-    pdf_h  = 846.6
+    pdf_w, pdf_h = 596.6, 846.6  # dimensions du PDF
 
-    html_width  = 894.0
-    html_height = 1264.0
-    scale_x = pdf_w / html_width
-    scale_y = pdf_h / html_height
-
+    # Création d'un canvas pour dessiner les textes
     packet = io.BytesIO()
-    can    = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
 
+    # Parcours des champs de type "statictext" et placement des textes
     for field in fields:
         if field.get("type") == "statictext":
-            x_html    = float(field.get("x", 0))
-            y_html    = float(field.get("y", 0))
-            h_html    = float(field.get("h", 0))
-            value     = field.get("value", "")
-            font_size = float(field.get("font_size", 14))
+            # Récupération des données du champ (les coordonnées sont supposées être en pixels ou points issus d'une maquette HTML)
+            x_field  = float(field.get("x", 0))
+            y_field  = float(field.get("y", 0))
+            h_field  = float(field.get("h", 0))
+            value    = field.get("value", "")
+            font_size= float(field.get("font_size", 14))
 
-            x_pdf   = x_html * scale_x
-            y_pdf   = pdf_h - ((y_html + h_html) * scale_y)
-
+            # Calcul simple de la position :
+            # - On ajoute un offset horizontal si besoin.
+            # - Pour l'ordonnée, comme HTML se base sur un origine en haut et PDF sur une origine en bas,
+            #   on soustrait (y_field + h_field) à la hauteur totale du PDF, puis on y ajoute l'offset vertical.
+            x_pdf = x_field + offset_x
+            y_pdf = pdf_h - (y_field + h_field) + offset_y
 
             can.setFont("Helvetica", font_size)
             can.drawString(x_pdf, y_pdf, value)
@@ -128,8 +124,9 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
     can.save()
     packet.seek(0)
 
+    # Fusion de la page overlay contenant le texte avec la page existante
     overlay_pdf = PdfReader(packet)
-    writer      = PdfWriter()
+    writer = PdfWriter()
     for i, p in enumerate(reader.pages):
         if i == page_num:
             p.merge_page(overlay_pdf.pages[0])
