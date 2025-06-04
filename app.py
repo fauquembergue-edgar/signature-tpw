@@ -106,19 +106,31 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
+def apply_static_text_fields(pdf_path, fields, html_width_px, html_height_px, page_num=0, output_path=None):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     font_size = 14
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
-    y_pdf += field_height - font_size  # Remonter baseline du texte
+
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    can.setFont("Helvetica", font_size)
-    can.setFillColorRGB(0, 0, 0)
-    can.drawString(x_pdf, y_pdf, text)
+    for field in fields:
+        if field.get('type') == 'statictext':
+            x_px = field.get('x', 0)
+            y_px = field.get('y', 0)
+            field_height = field.get('height', 40)
+            text = field.get('text', '')
+            x_pdf, y_pdf = html_to_pdf_coords(
+                x_px, y_px, field_height,
+                html_width_px, html_height_px,
+                pdf_width, pdf_height
+            )
+            y_pdf += field_height - font_size  # même correction baseline que apply_text
+            can.setFont("Helvetica", font_size)
+            can.setFillColorRGB(0, 0, 0)
+            can.drawString(x_pdf, y_pdf, text)
     can.save()
     packet.seek(0)
-    merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
+    merge_overlay(pdf_path, packet, output_path=output_path or pdf_path, page_num=page_num)
+
 
 
         
