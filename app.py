@@ -96,6 +96,7 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, off
     # Lecture du PDF existant
     reader = PdfReader(pdf_path)
     pdf_w, pdf_h = 596.6, 846.6  # dimensions du PDF
+    offset_x, offset_y = 0, -20
 
     # Création d'un canvas pour dessiner les textes
     packet = io.BytesIO()
