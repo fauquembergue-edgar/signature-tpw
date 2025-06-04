@@ -116,8 +116,8 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
             x_px = field.get("x", 0)
             y_px = field.get("y", 0)
             field_height = field.get("height", 30)
-            html_width_px = field.get("canvas_width", 900)
-            html_height_px = field.get("canvas_height", 1200)
+            html_width_px = field.get("canvas_width", 894)
+            html_height_px = field.get("canvas_height", 1264)
             text = field.get("text", "")
             font_size = field.get("font_size", 14)
             
