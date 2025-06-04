@@ -73,7 +73,7 @@ def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0, offset_x=0, offset_y=20):
+def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0, offset_x=0, offset_y=15):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     width, height = 100, field_height
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, height, html_width_px, html_height_px, pdf_width, pdf_height)
@@ -94,7 +94,7 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
-def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=15, offset_x=0, offset_y=0):
+def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=10, offset_x=0, offset_y=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, size, html_width_px, html_height_px, pdf_width, pdf_height)
     x_pdf += offset_x
