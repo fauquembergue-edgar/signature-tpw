@@ -107,53 +107,18 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
 def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0):
-    from PyPDF2 import PdfReader, PdfWriter
-    from reportlab.pdfgen import canvas as pdfcanvas
-    import io
-
-    reader = PdfReader(pdf_path)
-    page   = reader.pages[page_num]
-    pdf_w  = 596.6
-    pdf_h  = 846.6
-
-    html_width  = 894.0
-    html_height = 1264.0
-    scale_x = pdf_w / html_width
-    scale_y = pdf_h / html_height
-
+    pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    font_size = 14
+    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
+    y_pdf += field_height - font_size  # Remonter baseline du texte
     packet = io.BytesIO()
-    can    = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
-
-    for field in fields:
-        if field.get("type") == "statictext":
-            x_html    = float(field.get("x", 0))
-            y_html    = float(field.get("y", 0))
-            h_html    = float(field.get("h", 0))
-            value     = field.get("value", "")
-            font_size = float(field.get("font_size", 14))
-
-            # Conversion des coordonnées
-            x_pdf = x_html * scale_x
-            # Correction : on part du haut (origine UI), donc
-            # y_pdf = hauteur_pdf - (y_html * scale_y) - hauteur_zone_en_pdf
-            # Option : si tu veux que le texte soit collé en haut de la zone (comme sur l’UI)
-            y_pdf = pdf_h - (y_html * scale_y) - (h_html * scale_y)
-
-            can.setFont("Helvetica", font_size)
-            can.drawString(x_pdf, y_pdf, value)
-
+    can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+    can.setFont("Helvetica", font_size)
+    can.setFillColorRGB(0, 0, 0)
+    can.drawString(x_pdf, y_pdf, text)
     can.save()
     packet.seek(0)
-
-    overlay_pdf = PdfReader(packet)
-    writer      = PdfWriter()
-    for i, p in enumerate(reader.pages):
-        if i == page_num:
-            p.merge_page(overlay_pdf.pages[0])
-        writer.add_page(p)
-
-    with open(output_path or pdf_path, "wb") as f:
-        writer.write(f)
+    merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
 
         
