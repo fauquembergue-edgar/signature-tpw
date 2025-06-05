@@ -75,8 +75,8 @@
 const sessionId = "{{ session_id }}";
 const step = {{ step }};
 const signEmail = "{{ email }}";
-const fields = {{ fields_all | tojson }};
-const signers = {{ signers | tojson }};
+const fields = {{ fields_all | default([]) | tojson }};
+const signers = {{ signers | default([]) | tojson }};
 const colors = ["#FF5733", "#298DFF", "#27E054", "#D70EFF", "#FFD700", "#E08C2C", "#A51C30", "#6E60F9"];
 const inputArea = document.getElementById('input-area');
 const submitBtn = document.getElementById('submit-btn');
