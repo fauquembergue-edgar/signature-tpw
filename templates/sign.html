@@ -70,19 +70,10 @@ const sessionId = "{{ session_id }}";
 const step = {{ step }};
 const signers = {{ signers | tojson }};
 const fields = {{ fields_all | tojson }};
+const currentSignerId = {{ signer_id }}; // fournie par le backend dans render_template
 const inputArea = document.getElementById('input-area');
 const submitBtn = document.getElementById('submit-btn');
 let completed = fields.map(f => f.signed);
-
-// On récupère le signer_id du signataire courant à partir de l'email
-const signEmail = "{{ email }}";
-let currentSignerId = null;
-for (let i = 0; i < signers.length; i++) {
-  if (signers[i].email === signEmail) {
-    currentSignerId = signers[i].id !== undefined ? signers[i].id : i;
-    break;
-  }
-}
 
 const canvas = document.getElementById('pdf-canvas');
 const ctx = canvas.getContext('2d');
