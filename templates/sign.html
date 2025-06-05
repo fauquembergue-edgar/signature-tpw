@@ -22,6 +22,7 @@
       padding: 0 !important;
       margin: 0 !important;
       line-height: 1 !important;
+      transition: left 0.1s, top 0.1s, width 0.1s, height 0.1s;
     }
     .zone.locked {
       pointer-events: none;
@@ -66,13 +67,32 @@
   <button id="submit-btn">Valider et envoyer</button>
 
 <script>
+/**
+ * Pour garantir la correspondance des zones de signature même si les emails des signataires changent,
+ * il faut que chaque zone soit associée à un identifiant stable, comme "signataire1", "signataire2", etc.
+ * On suppose ici que chaque champ `f` dans `fields` contient un attribut `signer_id` (ex: "signer1", "signer2", etc.).
+ * L'attribut `f.email` correspond alors à l'adresse email actuellement assignée à ce signataire pour cette session.
+ */
+
 const sessionId = "{{ session_id }}";
 const step = {{ step }};
 const signEmail = "{{ email }}";
 const fields = {{ fields_all | tojson }};
+const signerMap = {{ signer_map | tojson }}; // Exemple: { "signer1": "alice@email.com", "signer2": "bob@email.com" }
 const inputArea = document.getElementById('input-area');
 const submitBtn = document.getElementById('submit-btn');
 let completed = fields.map(f => f.signed);
+
+// Pour retrouver le signataire de la session courante :
+let currentSignerId = null;
+for (const [signerId, mail] of Object.entries(signerMap)) {
+  if (mail === signEmail) currentSignerId = signerId;
+}
+if (!currentSignerId) {
+  // Cas d'un accès non autorisé (ou email inconnu)
+  document.body.innerHTML = "<h2>Accès refusé</h2><p>Vous n'avez aucune zone à remplir pour ce document.</p>";
+  throw new Error("Aucun signataire ne correspond à cet email");
+}
 
 const canvas = document.getElementById('pdf-canvas');
 const ctx = canvas.getContext('2d');
@@ -141,27 +161,23 @@ function initSigCanvasMobileDesktop(canvas) {
 
 // Fonction pour afficher correctement les zones selon l'échelle affichée du canvas
 function renderZones() {
-  // 1. Calcule le facteur d'échelle entre la taille affichée du canvas et la taille PDF logique
   const scale = canvas.getBoundingClientRect().width / canvas.width;
-
-  // 2. Efface les anciennes zones si besoin
   document.querySelectorAll('.zone').forEach(z => z.remove());
 
-  // 3. Ajoute chaque zone à la bonne position et bonne taille
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
 
     const zone = document.createElement('div');
     zone.className = 'zone';
-    // Position et taille scalable
     zone.style.left   = (f.x * scale) + "px";
     zone.style.top    = (f.y * scale) + "px";
     zone.style.width  = ((f.w || 100) * scale) + "px";
     zone.style.height = ((f.h || 40) * scale) + "px";
     zone.dataset.type  = f.type;
     zone.dataset.index = index;
-    zone.dataset.email = f.email;
+    zone.dataset.signer_id = f.signer_id || "";
 
+    // Affichage pour types différents
     if (f.type === 'signature') {
       zone.textContent = 'Signature';
     } else if (f.type === 'text') {
@@ -170,19 +186,20 @@ function renderZones() {
       zone.textContent = '☐';
     }
 
-    if (f.email !== signEmail) zone.classList.add('locked');
+    // Attribution : la zone est-elle pour le signataire courant ?
+    const assignedEmail = signerMap[f.signer_id];
+    if (assignedEmail !== signEmail) zone.classList.add('locked');
     if (f.type !== 'statictext')
-      zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
+      zone.style.borderColor = (assignedEmail === signEmail) ? '#FF5733' : '#ccc';
 
     container.appendChild(zone);
 
-    if (f.email === signEmail) {
+    if (assignedEmail === signEmail) {
       zone.addEventListener('click', () => handleClick(zone, f.type, index));
     }
   });
 }
 
-// À appeler après chaque rendu du PDF et sur window resize :
 window.addEventListener('resize', renderZones);
 
 pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
@@ -355,7 +372,8 @@ function updateZone(index) {
 }
 
 function checkCompletion() {
-  const mustSign = fields.filter(f => f.email === signEmail && f.type !== 'statictext');
+  // Les zones de ce signataire (par son ID stable, et non email)
+  const mustSign = fields.filter(f => f.signer_id === currentSignerId && f.type !== 'statictext');
   const allDone = mustSign.every(f => completed[ fields.indexOf(f) ]);
   if (allDone) submitBtn.style.display = 'inline-block';
 }
