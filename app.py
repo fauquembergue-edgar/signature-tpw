@@ -245,20 +245,35 @@ def define_fields():
             sessions={}
         )
 
-@app.route('/sign/<session_id>/<int:step>')
-def sign(session_id, step):
-    path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
-    with open(path) as f:
+@app.route('/sign')
+def sign():
+    session_id = request.args["session_id"]
+    signer_id = int(request.args["signer_id"])
+    session_path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
+    with open(session_path) as f:
         session_data = json.load(f)
-    fields = [f for f in session_data['fields'] if f.get('step', 0) == step]
+    signers = []
+    emails = []
+    for i, ffield in enumerate(session_data['fields']):
+        if "signer_id" in ffield and all(s.get("id") != ffield["signer_id"] for s in signers):
+            signers.append({"id": ffield["signer_id"], "email": ffield.get("email")})
+        elif "email" in ffield and ffield.get("email") and ffield.get("email") not in emails:
+            signers.append({"id": i, "email": ffield["email"]})
+            emails.append(ffield["email"])
+    # Ajout de fallback pour les anciens templates sans signer_id
+    for idx, ffield in enumerate(session_data['fields']):
+        if "signer_id" not in ffield and ffield.get("email"):
+            ffield["signer_id"] = next((s["id"] for s in signers if s["email"] == ffield["email"]), None)
+    with open(session_path, "w") as f:
+        json.dump(session_data, f)
     return render_template(
-        'sign.html',
-        fields_json=fields,
-        pdf=session_data['pdf'],
+        "sign.html",
         session_id=session_id,
-        step=step,
-        email=fields[0]['email'],
-        fields_all=session_data['fields']
+        signer_id=signer_id,
+        signers=signers,
+        pdf=session_data["pdf"],
+        step=0,
+        fields_all=session_data["fields"]
     )
 
 @app.route('/fill-field', methods=['POST'])
