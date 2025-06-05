@@ -78,52 +78,6 @@ const canvas = document.getElementById('pdf-canvas');
 const ctx = canvas.getContext('2d');
 const container = document.getElementById('pdf-container');
 
-pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
-  pdf.getPage(1).then(page => {
-    const viewport = page.getViewport({ scale: 1 });
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
-    return page.render({ canvasContext: ctx, viewport }).promise;
-  })
-).then(() => {
-  fields.forEach((f, index) => {
-    // Pas d'affichage pour les statictext
-    if (f.type === 'statictext') {
-      return;
-    }
-
-    const zone = document.createElement('div');
-    zone.className = 'zone';
-    zone.style.left        = `${f.x}px`;
-    zone.style.top         = `${f.y}px`;
-    zone.style.width       = `${(f.w || 100)}px`;
-    zone.style.height      = `${(f.h || 40)}px`;
-    zone.dataset.type      = f.type;
-    zone.dataset.index     = index;
-    zone.dataset.email     = f.email;
-
-    if (f.type === 'signature') {
-      zone.textContent = 'Signature';
-    } else if (f.type === 'text') {
-      zone.textContent = 'Texte';
-    } else if (f.type === 'checkbox') {
-      zone.textContent = '☐';
-    }
-
-    if (f.email !== signEmail) zone.classList.add('locked');
-    if (f.type !== 'statictext')
-      zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
-
-    container.appendChild(zone);
-
-    if (f.email === signEmail) {
-      zone.addEventListener('click', () => handleClick(zone, f.type, index));
-    }
-  });
-});
-
 // Fonction pour rendre le canvas de signature compatible mobile/desktop
 function initSigCanvasMobileDesktop(canvas) {
   const ctx = canvas.getContext('2d');
@@ -184,6 +138,63 @@ function initSigCanvasMobileDesktop(canvas) {
   // Clear
   return () => ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
+
+// Fonction pour afficher correctement les zones selon l'échelle affichée du canvas
+function renderZones() {
+  // 1. Calcule le facteur d'échelle entre la taille affichée du canvas et la taille PDF logique
+  const scale = canvas.getBoundingClientRect().width / canvas.width;
+
+  // 2. Efface les anciennes zones si besoin
+  document.querySelectorAll('.zone').forEach(z => z.remove());
+
+  // 3. Ajoute chaque zone à la bonne position et bonne taille
+  fields.forEach((f, index) => {
+    if (f.type === 'statictext') return;
+
+    const zone = document.createElement('div');
+    zone.className = 'zone';
+    // Position et taille scalable
+    zone.style.left   = (f.x * scale) + "px";
+    zone.style.top    = (f.y * scale) + "px";
+    zone.style.width  = ((f.w || 100) * scale) + "px";
+    zone.style.height = ((f.h || 40) * scale) + "px";
+    zone.dataset.type  = f.type;
+    zone.dataset.index = index;
+    zone.dataset.email = f.email;
+
+    if (f.type === 'signature') {
+      zone.textContent = 'Signature';
+    } else if (f.type === 'text') {
+      zone.textContent = 'Texte';
+    } else if (f.type === 'checkbox') {
+      zone.textContent = '☐';
+    }
+
+    if (f.email !== signEmail) zone.classList.add('locked');
+    if (f.type !== 'statictext')
+      zone.style.borderColor = f.email === signEmail ? '#FF5733' : '#ccc';
+
+    container.appendChild(zone);
+
+    if (f.email === signEmail) {
+      zone.addEventListener('click', () => handleClick(zone, f.type, index));
+    }
+  });
+}
+
+// À appeler après chaque rendu du PDF et sur window resize :
+window.addEventListener('resize', renderZones);
+
+pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
+  pdf.getPage(1).then(page => {
+    const viewport = page.getViewport({ scale: 1 });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = "100%";
+    canvas.style.height = "auto";
+    return page.render({ canvasContext: ctx, viewport }).promise;
+  })
+).then(renderZones);
 
 function handleClick(zone, type, index) {
   inputArea.innerHTML = '';
