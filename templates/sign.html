@@ -161,7 +161,7 @@ function renderZones() {
       zone.textContent = '☐';
     }
 
-    // Correction : couleur et accès basés uniquement sur le numéro de signataire
+    // Couleur et accès UNIQUEMENT sur le numéro de signataire !
     if (f.signer_num !== signerNum) zone.classList.add('locked');
     if (f.type !== 'statictext')
       zone.style.borderColor = (f.signer_num === signerNum) ? '#FF5733' : '#ccc';
