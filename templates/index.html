@@ -193,14 +193,14 @@ canvas.addEventListener('click', function(event) {
   if (!currentType) return alert("Choisissez un type.");
   // Statictext ne nécessite pas de signataire
   let signerId = null;
-    let email = null;
-    if (currentType !== "statictext") {
-      const signerRadio = document.querySelector('input[name="signataire"]:checked');
-      if (!signerRadio) return alert("Sélectionnez un signataire.");
-      signerId = parseInt(signerRadio.value);
-      email = signataires.find(s => s.id === signerId).email;
-    }
-  const rect = canvas.getBoundingClientRect();
+        let email = null;
+        if (currentType !== "statictext") {
+          const signerRadio = document.querySelector('input[name="signataire"]:checked');
+          if (!signerRadio) return alert("Sélectionnez un signataire.");
+          signerId = parseInt(signerRadio.value);
+          email = signataires.find(s => s.id === signerId).email;
+        }
+        const rect =const rect = canvas.getBoundingClientRect();
   const x = (event.clientX - rect.left) / scale;
   const y = (event.clientY - rect.top) / scale;
   const id = fieldId++;
@@ -271,89 +271,93 @@ document.getElementById('assign-fields-form').onsubmit = function () {
   document.getElementById('nom-demande-hidden').value = document.getElementById('nom-demande').value;
 };
 
-function saveTemplate() {
-  const name = document.getElementById('template-name').value.trim();
-  if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
 
-  // On reconstruit les champs pour ne pas renvoyer d’e-mail, mais uniquement signer_id.
-  const templateFields = fields.map(f => {
-    if (f.type === "statictext") {
-      return { type: f.type, x: f.x, y: f.y, value: f.value };
-    } else {
-      return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id };
+    function saveTemplate() {
+        const name = document.getElementById('template-name').value.trim();
+        if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
+
+        // On reconstruit les champs pour ne pas renvoyer d’e-mail, mais uniquement signer_id.
+        const templateFields = fields.map(f => {
+            if (f.type === "statictext") {
+                return { type: f.type, x: f.x, y: f.y, value: f.value };
+            } else {
+                return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id };
+            }
+        });
+
+        fetch('/save-template', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                pdf: currentPdf,
+                fields: templateFields
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'saved') {
+                alert("Template enregistré avec succès.");
+                fields = [];
+            } else {
+                alert("Erreur lors de l’enregistrement du template.");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Une erreur réseau est survenue.");
+        });
     }
-  });
-
-  fetch('/save-template', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: name,
-      pdf: currentPdf,
-      fields: templateFields
-    })
-  })
-  .then(res => res.json())
-  .then(data => {
-    alert("Template enregistré.");
-    fields = [];
-    currentPdf = data.pdf;
-    container.style.display = 'block';
-    loadPDF('/uploads/' + currentPdf);
-    setTimeout(() => {
-      data.fields.forEach(field => {
-        const id = fieldId++;
-        field.id = id;
-        fields.push(field);
-        const div = document.createElement('div');
-        div.className = 'field-box';
-        if (field.type === "statictext") {
-          div.classList.add('statictext-box');
-          div.innerText = field.value;
-        } else {
-          div.innerText = field.type.toUpperCase();
-        }
-        div.style.left = (field.x * scale) + 'px';
-        div.style.top = (field.y * scale) + 'px';
-        let color = "#338DFF";
-        if (field.type !== "statictext") {
-          color = COLORS[field.signer_id % COLORS.length];
-        }
-        div.style.border = `2px dashed ${color}`;
-        container.appendChild(div);
-        enableDrag(div, id);
-      });
-    }, 500);
-  });
+,
+    body: JSON.stringify({ name: name, pdf: currentPdf, fields: fields })
+  }).then(res => res.json()).then(r => alert("Template enregistré."));
 }
 
-function loadTemplate() {
-  const name = document.getElementById('template-select').value;
-  fetch('/load-template/' + name)
-    .then(res => res.json())
-    .then(data => {
-      fields = [];
-      currentPdf = data.pdf;
-      container.style.display = 'block';
-      loadPDF('/uploads/' + currentPdf);
-      setTimeout(() => {
-        data.fields.forEach(field => {
-          const id = fieldId++;
-          field.id = id;
-          fields.push(field);
-          const div = document.createElement('div');
-          div.className = 'field-box';
-          if (field.type === "statictext") {
-            div.classList.add('statictext-box');
-            div.innerText = field.value;
-          } else {
+
+    function loadTemplate() {
+        const name = document.getElementById('template-select').value;
+        fetch('/load-template/' + name)
+        .then(res => res.json())
+        .then(data => {
+            // Note : Avant de dessiner, on suppose l'utilisateur a déjà ajouté signataires.
+            fields = [];
+            currentPdf = data.pdf;
+            container.style.display = 'block';
+            loadPDF('/uploads/' + currentPdf);
+            setTimeout(() => {
+                data.fields.forEach(field => {
+                    const id = fieldId++;
+                    field.id = id;
+                    fields.push(field);
+                    const div = document.createElement('div');
+                    div.className = 'field-box';
+                    if (field.type === "statictext") {
+                        div.classList.add('statictext-box');
+                        div.innerText = field.value;
+                    } else {
+                        div.innerText = field.type.toUpperCase();
+                    }
+                    div.style.left = (field.x * scale) + 'px';
+                    div.style.top = (field.y * scale) + 'px';
+                    let color = "#338DFF";
+                    if (field.type !== "statictext") {
+                        color = COLORS[field.signer_id % COLORS.length];
+                    }
+                    div.style.border = `2px dashed ${color}`;
+                    container.appendChild(div);
+                    enableDrag(div, id);
+                });
+            }, 500);
+        });
+    }
+else {
             div.innerText = field.type.toUpperCase();
           }
           div.style.left = (field.x * scale) + 'px';
           div.style.top = (field.y * scale) + 'px';
           let color = "#338DFF";
           if (field.type !== "statictext") {
-            color = COLORS[signataires.findIndex(s => s.email === field.email) % COLORS.length];
+            color = COLORS[field.signer_id % COLORS.length];
           }
           div.style.border = `2px dashed ${color}`;
           const removeBtn = document.createElement('button');
