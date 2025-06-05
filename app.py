@@ -112,12 +112,14 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
 
 
 def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=3, offset_y=23):
+    # Gère le cas où il n'y a aucun champ "statictext"
     static_fields = [f for f in fields if f.get("type") == "statictext"]
     if not static_fields:
+        # Ne rien faire si aucun champ statictext
         return
 
     reader = PdfReader(pdf_path)
-    pdf_w, pdf_h = 596.6, 846.6
+    pdf_w, pdf_h = 596.6, 846.6  # dimensions du PDF
 
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
@@ -206,10 +208,6 @@ def define_fields():
         field['signed'] = False
         field['step'] = i
         field['page'] = field.get('page', 0)
-        # - IMPORTANT - Attribuer un numéro de signataire (signer_num) pour chaque zone, PAS d'email ici
-        # Si le front ne le fait pas, tu dois le faire ici, par exemple :
-        # field['signer_num'] = numéro du signataire qui doit remplir cette zone
-        # (Supposons que le front l'a bien mis)
         if 'h' not in field:
             if field['type'] == 'signature':
                 field['h'] = 40
@@ -221,6 +219,7 @@ def define_fields():
     html_width_px = 931.5
     html_height_px = 1250
 
+    # Applique uniquement si des champs statictext existent (sinon no-op)
     apply_static_text_fields(pdf_path, fields, output_path=None)
 
     session_data = {
@@ -233,11 +232,13 @@ def define_fields():
     with open(session_file_path, 'w') as f:
         json.dump(session_data, f)
 
+    # Correction ici : on cherche s'il y a au moins un champ signable (hors statictext)
     signable_fields = [f for f in fields if f.get('type') not in ('statictext',)]
     if signable_fields:
         send_email(session_id, step=0)
         return render_template("notified.html", session_id=session_id)
     else:
+        # Aucun champ signable : on ne lance pas le process mais on ne crash pas non plus
         return render_template(
             "index.html",
             templates=[f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')],
@@ -249,22 +250,14 @@ def sign(session_id, step):
     path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(path) as f:
         session_data = json.load(f)
-    # Calcule le numéro du signataire courant pour ce step
-    # On suppose ici que le numéro de signataire est le même pour toutes les zones de ce step
-    fields_for_this_step = [f for f in session_data['fields'] if f.get('step', 0) == step]
-    if not fields_for_this_step:
-        return "Aucune zone à remplir", 404
-    signer_num = fields_for_this_step[0].get('signer_num')
-    # (L'email ne sert qu'à l'envoi du mail/l'affichage, pas pour le JS)
-    email = fields_for_this_step[0].get('email', '')
+    fields = [f for f in session_data['fields'] if f.get('step', 0) == step]
     return render_template(
         'sign.html',
-        fields_json=fields_for_this_step,
+        fields_json=fields,
         pdf=session_data['pdf'],
         session_id=session_id,
         step=step,
-        email=email,
-        signer_num=signer_num,  # Passe le numéro du signataire au front !
+        email=fields[0]['email'],
         fields_all=session_data['fields']
     )
 
@@ -275,14 +268,6 @@ def fill_field():
     with open(session_path) as f:
         session_data = json.load(f)
     field = session_data['fields'][data['field_index']]
-    # Vérifie que le remplissage ne peut être fait que par le signataire associé à cette zone
-    # On récupère le numéro du signataire courant dans la session (_pas_ l'email)
-    # L'idéal est de stocker signer_num dans la session (ou de le passer côté formulaire avec sécurité)
-    signer_num = field.get('signer_num')
-    # Pour renforcer la sécurité, tu peux aussi vérifier le numéro de signataire côté POST (par exemple via le token d'accès)
-    # (Ici on suppose que chaque session d'accès correspond à un step et un numéro de signataire)
-    # Si tu veux une sécurité supplémentaire, récupère signer_num depuis la session utilisateur et compare-le
-    # Ici on ne fait que la logique simple
     field['value'] = data['value']
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
@@ -319,8 +304,6 @@ def finalise_signature():
     current_step = max(f['step'] for f in all_fields if f['signed']) if any(f['signed'] for f in all_fields) else 0
     remaining_same = [f for f in all_fields if f['step']==current_step and not f['signed'] and f["type"] != "statictext"]
     if remaining_same:
-        with open(session_path, 'w') as f:
-            json.dump(session_data, f)
         return jsonify({'status': 'incomplete'})
     remaining = [f for f in all_fields if not f['signed'] and f["type"] != "statictext"]
     if remaining:
@@ -351,7 +334,6 @@ def send_email(session_id, step):
         except json.JSONDecodeError:
             print("Erreur : fichier JSON vide ou corrompu")
             return
-    # Prend le premier champ du step courant qui n'est pas statictext
     recipient = next((fld['email'] for fld in data['fields'] if fld.get('step', 0) == step and fld["type"] != "statictext"), None)
     if not recipient:
         return
