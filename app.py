@@ -199,11 +199,19 @@ def load_template(name):
 
 @app.route('/define-fields', methods=['POST'])
 def define_fields():
-    data = json.loads(request.form['fields_json'])
+    try:
+        data = json.loads(request.form['fields_json'])
+    except KeyError:
+        return jsonify({'error': 'Le champ fields_json est manquant'}), 400
+
+    pdf_filename = data.get('pdf')
+    if not pdf_filename:
+        return jsonify({'error': "Le nom du fichier PDF 'n’est pas fourni dans 'fields_json'"}), 400
+
     message = request.form.get('email_message', '')
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
-    fields = data['fields']
+    fields = data.get('fields', [])
     for i, field in enumerate(fields):
         field['signed'] = False
         field['step'] = i
@@ -215,7 +223,9 @@ def define_fields():
                 field['h'] = 15
             else:
                 field['h'] = 40
-    pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
+    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_filename)
+    if not os.path.exists(pdf_path):
+        return jsonify({'error': f"Le fichier PDF '{pdf_filename}' n’a pas été trouvé sur le serveur."}), 400
     html_width_px = 931.5
     html_height_px = 1250
 
@@ -223,7 +233,7 @@ def define_fields():
     apply_static_text_fields(pdf_path, fields, output_path=None)
 
     session_data = {
-        'pdf': data['pdf'],
+        'pdf': pdf_filename,
         'fields': fields,
         'email_message': message,
         'nom_demande': nom_demande
