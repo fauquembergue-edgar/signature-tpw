@@ -235,6 +235,33 @@ def define_fields():
             sessions={}
         )
 
+@app.route('/sign/<session_id>/<int:step>')
+def sign(session_id, step):
+    session_path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
+    if not os.path.exists(session_path):
+        return "Session introuvable", 404
+    with open(session_path) as f:
+        session_data = json.load(f)
+    signers = []
+    for f in session_data['fields']:
+        if f.get('type') != 'statictext' and 'signer_id' in f and 'email' in f:
+            s = {'id': f['signer_id'], 'email': f['email']}
+            if s not in signers:
+                signers.append(s)
+    # Trouve le currentSignerId pour ce step (le signataire de ce step)
+    fields = [f for f in session_data['fields'] if f.get('step', 0) == step]
+    currentSignerId = fields[0]['signer_id'] if fields and 'signer_id' in fields[0] else None
+    return render_template(
+        'sign.html',
+        pdf=session_data['pdf'],
+        session_id=session_id,
+        step=step,
+        fields_json=fields,
+        fields_all=session_data['fields'],
+        signers=signers,
+        signer_id=currentSignerId
+    )
+
 @app.route('/fill-field', methods=['POST'])
 def fill_field():
     data = request.get_json()
