@@ -14,6 +14,30 @@
       background: white;
       padding: 4px;
       font-size: 12px;
+      cursor: move;
+      z-index: 10;
+    }
+    .remove-btn {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      width: 20px;
+      height: 20px;
+      font-size: 12px;
+    }
+    #left { flex: 3; margin-right: 20px; position: relative; }
+    #right {
+      flex: 1;
+      background: white;
+      border: 1px solid #ccc;
+      padding: 15px;
+      max-height: 90vh;
+      overflow-y: auto;
     }
     .legend-box {
       display: inline-block;
@@ -45,13 +69,14 @@
     <button class="btn" onclick="selectType('text')">Zone de texte</button>
     <button class="btn" onclick="selectType('signature')">Zone de signature</button>
     <button class="btn" onclick="selectType('checkbox')">Case à cocher</button>
+    <button class="btn" onclick="selectType('statictext')" style="background:#338DFF;">Zone texte statique</button>
   </div>
 
   <div>
-    <strong>Ajouter signataire :</strong><br>
-    <input type="text" id="new-email" placeholder="Adresse email">
-    <button class="btn" onclick="addSignataire()">+ Ajouter</button>
+    <strong>Ajouter des signataires :</strong>
     <div id="signataires-list"></div>
+    <input type="email" id="new-email" placeholder="Email du signataire">
+    <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
   </div>
 
   <div>
@@ -77,16 +102,32 @@
     <button class="btn" onclick="loadTemplate()">📂 Charger</button>
   </div>
 
+  <div id="pdf-container" style="position: relative; display: none;">
+    <canvas id="pdf-canvas"></canvas>
+  </div>
+
   <form id="assign-fields-form" action="/define-fields" method="post">
     <input type="hidden" name="fields_json" id="fields-json">
     <input type="hidden" name="email_message" id="email-message-hidden">
     <input type="hidden" name="nom_demande" id="nom-demande-hidden">
-    <button type="submit" class="btn">Envoyer pour signature</button>
+    <input type="submit" value="📤 Lancer le processus de signature" class="btn">
   </form>
 </div>
 
-<div id="pdf-container" style="position: relative; display: none;">
-  <canvas id="pdf-canvas"></canvas>
+<div id="right">
+  <h3>🧾 Suivi des signatures</h3>
+  <table style="width:100%; font-size: 13px; border-collapse: collapse;">
+    <tr style="background-color:#007BFF; color:white;">
+      <th>Demande</th>
+      <th>Statut</th>
+    </tr>
+    {% for sid, s in sessions.items() %}
+    <tr>
+      <td>{{ s.name or 'Sans nom' }}</td>
+      <td>{% if s.done %}✅ Terminé{% else %}⏳ En attente{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
 </div>
 
 <script>
@@ -101,7 +142,7 @@ const COLORS = ["#FF5733", "#337DFF", "#33C964", "#D633FF", "#FFC300", "#33D6FF"
 const canvas = document.getElementById('pdf-canvas');
 const container = document.getElementById('pdf-container');
 
-document.getElementById('upload-form').addEventListener('submit', function(e) {
+document.getElementById('upload-form').onsubmit = function(e) {
   e.preventDefault();
   const formData = new FormData(this);
   fetch('/upload', { method: 'POST', body: formData })
@@ -110,35 +151,23 @@ document.getElementById('upload-form').addEventListener('submit', function(e) {
       currentPdf = data.filename;
       container.style.display = 'block';
       loadPDF('/uploads/' + data.filename);
-    })
-    .catch(err => {
-      console.error(err);
-      alert("Erreur lors de l’upload du PDF.");
     });
-});
+};
 
 function loadPDF(url) {
   const loadingTask = pdfjsLib.getDocument(url);
-  loadingTask.promise.then(pdfDoc => {
-    pdfDoc.getPage(1).then(page => {
-      const viewport = page.getViewport({ scale: scale });
+  loadingTask.promise.then(pdf => {
+    pdf.getPage(1).then(page => {
+      const viewport = page.getViewport({ scale });
       canvas.height = viewport.height;
-      canvas.width  = viewport.width;
-      const renderContext = {
-        canvasContext: canvas.getContext('2d'),
-        viewport: viewport
-      };
-      page.render(renderContext);
+      canvas.width = viewport.width;
+      const context = canvas.getContext('2d');
+      page.render({ canvasContext: context, viewport: viewport });
     });
-  }).catch(err => {
-    console.error("Erreur lors du chargement du PDF :", err);
-    alert("Impossible de charger le PDF.");
   });
 }
 
-function selectType(type) {
-  currentType = (type === 'text' ? 'statictext' : type);
-}
+function selectType(type) { currentType = type; }
 
 function addSignataire() {
   const email = document.getElementById('new-email').value.trim();
@@ -149,30 +178,28 @@ function addSignataire() {
 }
 
 function updateSignatairesList() {
-  const list = document.getElementById('signataires-list');
-  list.innerHTML = '';
+  const container = document.getElementById('signataires-list');
+  container.innerHTML = "";
   signataires.forEach((s, i) => {
     const label = document.createElement('label');
-    label.innerHTML = `
-      <input type="radio" name="signataire" value="${s.id}">
-      <span class="legend-box" style="background: ${COLORS[i % COLORS.length]};"></span>
-      ${s.email}
-    `;
-    list.appendChild(label);
-    list.appendChild(document.createElement('br'));
+    label.innerHTML = `<input type="radio" name="signataire" value="${s.id}"> Signataire ${i + 1} (${s.email}) <span style="background:${COLORS[i % COLORS.length]}; width:10px; height:10px; display:inline-block;"></span>`;
+    container.appendChild(label);
+    container.appendChild(document.createElement('br'));
   });
 }
 
+// --- Ajout du champ directement sur le PDF ---
 canvas.addEventListener('click', function(event) {
   if (!currentType) return alert("Choisissez un type.");
+  // Statictext ne nécessite pas de signataire
   let signerId = null;
-  let email = null;
-  if (currentType !== "statictext") {
-    const signerRadio = document.querySelector('input[name="signataire"]:checked');
-    if (!signerRadio) return alert("Sélectionnez un signataire.");
-    signerId = parseInt(signerRadio.value);
-    email = signataires.find(s => s.id === signerId).email;
-  }
+    let email = null;
+    if (currentType !== "statictext") {
+      const signerRadio = document.querySelector('input[name="signataire"]:checked');
+      if (!signerRadio) return alert("Sélectionnez un signataire.");
+      signerId = parseInt(signerRadio.value);
+      email = signataires.find(s => s.id === signerId).email;
+    }
   const rect = canvas.getBoundingClientRect();
   const x = (event.clientX - rect.left) / scale;
   const y = (event.clientY - rect.top) / scale;
@@ -190,6 +217,7 @@ canvas.addEventListener('click', function(event) {
     field = { id, type: currentType, signer_id: signerId, x, y, signed: false };
   }
   fields.push(field);
+
   const div = document.createElement('div');
   div.className = 'field-box';
   if (currentType === "statictext") {
@@ -203,10 +231,10 @@ canvas.addEventListener('click', function(event) {
   div.style.border = `2px dashed ${color}`;
   const removeBtn = document.createElement('button');
   removeBtn.innerText = '×';
-  removeBtn.className = 'btn';
+  removeBtn.className = 'remove-btn';
   removeBtn.onclick = function() {
-    const idx = fields.findIndex(f => f.id === id);
-    if (idx !== -1) fields.splice(idx, 1);
+    const index = fields.findIndex(f => f.id === id);
+    if (index !== -1) fields.splice(index, 1);
     div.remove();
   };
   div.appendChild(removeBtn);
@@ -216,20 +244,20 @@ canvas.addEventListener('click', function(event) {
 
 function enableDrag(element, id) {
   let offsetX, offsetY;
-  element.onmousedown = function(e) {
-    offsetX = e.clientX - parseInt(element.style.left);
-    offsetY = e.clientY - parseInt(element.style.top);
-    function moveAt(ev) {
-      const x = (ev.clientX - offsetX) / scale;
-      const y = (ev.clientY - offsetY) / scale;
+  element.onmousedown = function (event) {
+    offsetX = event.clientX - parseInt(element.style.left);
+    offsetY = event.clientY - parseInt(element.style.top);
+    function moveAt(e) {
+      const x = (e.clientX - offsetX) / scale;
+      const y = (e.clientY - offsetY) / scale;
       element.style.left = (x * scale) + 'px';
       element.style.top = (y * scale) + 'px';
       const updated = fields.find(f => f.id === id);
       if (updated) { updated.x = x; updated.y = y; }
     }
-    function onMouseMove(ev) { moveAt(ev); }
+    function onMouseMove(e) { moveAt(e); }
     document.addEventListener('mousemove', onMouseMove);
-    document.onmouseup = function() {
+    document.onmouseup = function () {
       document.removeEventListener('mousemove', onMouseMove);
       document.onmouseup = null;
     };
@@ -237,7 +265,7 @@ function enableDrag(element, id) {
   element.ondragstart = () => false;
 }
 
-document.getElementById('assign-fields-form').onsubmit = function() {
+document.getElementById('assign-fields-form').onsubmit = function () {
   document.getElementById('fields-json').value = JSON.stringify({ pdf: currentPdf, fields: fields });
   document.getElementById('email-message-hidden').value = document.getElementById('email-message').value;
   document.getElementById('nom-demande-hidden').value = document.getElementById('nom-demande').value;
@@ -246,6 +274,8 @@ document.getElementById('assign-fields-form').onsubmit = function() {
 function saveTemplate() {
   const name = document.getElementById('template-name').value.trim();
   if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
+
+  // On reconstruit les champs pour ne pas renvoyer d’e-mail, mais uniquement signer_id.
   const templateFields = fields.map(f => {
     if (f.type === "statictext") {
       return { type: f.type, x: f.x, y: f.y, value: f.value };
@@ -253,23 +283,47 @@ function saveTemplate() {
       return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id };
     }
   });
+
   fetch('/save-template', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name, pdf: currentPdf, fields: templateFields })
+    body: JSON.stringify({
+      name: name,
+      pdf: currentPdf,
+      fields: templateFields
+    })
   })
   .then(res => res.json())
   .then(data => {
-    if (data.status === 'saved') {
-      alert("Template enregistré avec succès.");
-      fields = [];
-    } else {
-      alert("Erreur lors de l’enregistrement du template.");
-    }
-  })
-  .catch(err => {
-    console.error(err);
-    alert("Une erreur réseau est survenue.");
+    alert("Template enregistré.");
+    fields = [];
+    currentPdf = data.pdf;
+    container.style.display = 'block';
+    loadPDF('/uploads/' + currentPdf);
+    setTimeout(() => {
+      data.fields.forEach(field => {
+        const id = fieldId++;
+        field.id = id;
+        fields.push(field);
+        const div = document.createElement('div');
+        div.className = 'field-box';
+        if (field.type === "statictext") {
+          div.classList.add('statictext-box');
+          div.innerText = field.value;
+        } else {
+          div.innerText = field.type.toUpperCase();
+        }
+        div.style.left = (field.x * scale) + 'px';
+        div.style.top = (field.y * scale) + 'px';
+        let color = "#338DFF";
+        if (field.type !== "statictext") {
+          color = COLORS[field.signer_id % COLORS.length];
+        }
+        div.style.border = `2px dashed ${color}`;
+        container.appendChild(div);
+        enableDrag(div, id);
+      });
+    }, 500);
   });
 }
 
@@ -299,9 +353,18 @@ function loadTemplate() {
           div.style.top = (field.y * scale) + 'px';
           let color = "#338DFF";
           if (field.type !== "statictext") {
-            color = COLORS[field.signer_id % COLORS.length];
+            color = COLORS[signataires.findIndex(s => s.email === field.email) % COLORS.length];
           }
           div.style.border = `2px dashed ${color}`;
+          const removeBtn = document.createElement('button');
+          removeBtn.innerText = '×';
+          removeBtn.className = 'remove-btn';
+          removeBtn.onclick = function() {
+            const index = fields.findIndex(f => f.id === id);
+            if (index !== -1) fields.splice(index, 1);
+            div.remove();
+          };
+          div.appendChild(removeBtn);
           container.appendChild(div);
           enableDrag(div, id);
         });
