@@ -6,8 +6,6 @@ import smtplib
 import base64
 from email.message import EmailMessage
 from PyPDF2 import PdfReader, PdfWriter
-from reportlab.pdfbase import pdfmetrics
-from reportlab.lib.colors import black
 from reportlab.pdfgen import canvas as pdfcanvas
 from dotenv import load_dotenv
 import io
@@ -32,13 +30,7 @@ def get_pdf_page_size(pdf_path, page_num=0):
     mediabox = reader.pages[page_num].mediabox
     width = float(mediabox.width)
     height = float(mediabox.height)
-    print("PDF Page Size (points):", width, height)
     return width, height
-
-def html_to_pdf_coords(x_html, y_html, h_zone, html_w, html_h, pdf_w, pdf_h):
-    x_pdf = x_html * pdf_w / html_w
-    y_pdf = y_html * pdf_h / html_h
-    return x_pdf, y_pdf
 
 def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
     reader = PdfReader(pdf_path)
@@ -55,12 +47,17 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
         with open(pdf_path, 'wb') as f:
             writer.write(f)
 
+def html_to_pdf_coords(x_html, y_html, h_zone, html_w, html_h, pdf_w, pdf_h):
+    x_pdf = x_html * pdf_w / html_w
+    y_pdf = y_html * pdf_h / html_h
+    return x_pdf, y_pdf
+
 def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_height=40, page_num=0, offset_x=0, offset_y=2):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     font_size = 14
     x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
     x_pdf += offset_x
-    y_pdf += offset_y + (field_height - font_size)  # Remonter baseline du texte
+    y_pdf += offset_y + (field_height - font_size)
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.setFont("Helvetica", font_size)
@@ -80,7 +77,6 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
         sig_data = sig_data.split(",", 1)[1]
     image_bytes = base64.b64decode(sig_data)
     image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
-
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     img_io = io.BytesIO()
@@ -108,18 +104,13 @@ def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px,
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
 def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=3, offset_y=23):
-    # Gère le cas où il n'y a aucun champ "statictext"
     static_fields = [f for f in fields if f.get("type") == "statictext"]
     if not static_fields:
-        # Ne rien faire si aucun champ statictext
         return
-
     reader = PdfReader(pdf_path)
-    pdf_w, pdf_h = 596.6, 846.6  # dimensions du PDF
-
+    pdf_w, pdf_h = 596.6, 846.6
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
-
     for field in static_fields:
         x_field  = float(field.get("x", 0))
         y_field  = float(field.get("y", 0))
@@ -130,17 +121,14 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, off
         y_pdf = pdf_h - (y_field + h_field) + offset_y
         can.setFont("Helvetica", font_size)
         can.drawString(x_pdf, y_pdf, value)
-
     can.save()
     packet.seek(0)
-
     overlay_pdf = PdfReader(packet)
     writer = PdfWriter()
     for i, p in enumerate(reader.pages):
         if i == page_num:
             p.merge_page(overlay_pdf.pages[0])
         writer.add_page(p)
-
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
 
@@ -150,14 +138,17 @@ def index():
     for filename in os.listdir(SESSION_FOLDER):
         if filename.endswith(".json"):
             sid = filename.replace(".json", "")
-            with open(os.path.join(SESSION_FOLDER, filename)) as f:
-                data = json.load(f)
-            sessions[sid] = {
-                "pdf": data.get("pdf", ""),  # Correction KeyError ici
-                "name": data.get("nom_demande", ""),
-                "fields": data.get("fields", []),
-                "done": all(f.get("signed") for f in data.get("fields", []) if f.get("type") != "statictext")
-            }
+            try:
+                with open(os.path.join(SESSION_FOLDER, filename)) as f:
+                    data = json.load(f)
+                sessions[sid] = {
+                    "pdf": data.get("pdf", ""),
+                    "name": data.get("nom_demande", ""),
+                    "fields": data.get("fields", []),
+                    "done": all(f.get("signed") for f in data.get("fields", []) if f.get("type") != "statictext")
+                }
+            except Exception as e:
+                print(f"[ERROR] Session {filename} illisible: {e}")
     templates = [f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')]
     return render_template("index.html", templates=templates, sessions=sessions)
 
@@ -191,7 +182,8 @@ def define_fields():
                 field['h'] = 15
             else:
                 field['h'] = 40
-    if 'pdf' not in data or not data['pdf']:
+    if not data.get('pdf'):
+        print("[ERROR] Aucune clé 'pdf' dans les données reçues.")
         return render_template(
             "index.html",
             templates=[f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')],
@@ -201,9 +193,10 @@ def define_fields():
     pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
     html_width_px = 931.5
     html_height_px = 1250
-
-    # Applique uniquement si des champs statictext existent (sinon no-op)
-    apply_static_text_fields(pdf_path, fields, output_path=None)
+    try:
+        apply_static_text_fields(pdf_path, fields, output_path=None)
+    except Exception as e:
+        print(f"[ERROR] Application des champs statictext: {e}")
 
     session_data = {
         'pdf': data['pdf'],
@@ -212,16 +205,22 @@ def define_fields():
         'nom_demande': nom_demande
     }
     session_file_path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
-    with open(session_file_path, 'w') as f:
-        json.dump(session_data, f)
+    try:
+        with open(session_file_path, 'w') as f:
+            json.dump(session_data, f)
+        print(f"[DEBUG] Session sauvegardée: {session_file_path}")
+    except Exception as e:
+        print(f"[ERROR] Sauvegarde session: {e}")
 
-    # Correction ici : on cherche s'il y a au moins un champ signable (hors statictext)
     signable_fields = [f for f in fields if f.get('type') not in ('statictext',)]
+    print(f"[DEBUG] signable_fields: {signable_fields}")
+
     if signable_fields:
+        print(f"[DEBUG] Appel send_email")
         send_email(session_id, step=0)
         return render_template("notified.html", session_id=session_id)
     else:
-        # Aucun champ signable : on ne lance pas le process mais on ne crash pas non plus
+        print(f"[DEBUG] Aucun champ signable")
         return render_template(
             "index.html",
             templates=[f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')],
@@ -268,7 +267,6 @@ def finalise():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
-    # Envoie à tous les signataires le PDF final
     send_pdf_to_all(session_data)
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
@@ -287,6 +285,7 @@ def send_email(session_id, step=0):
             return
     recipient = next((fld.get('email') for fld in data.get('fields', []) if fld.get('step', 0) == step and fld.get("type") != "statictext"), None)
     if not recipient:
+        print("[ERROR] Aucun email de destinataire trouvé pour l'étape.")
         return
     app_url = os.getenv('APP_URL', 'http://localhost:5000')
     link = f"{app_url}/sign/{session_id}/{step}"
@@ -294,8 +293,7 @@ def send_email(session_id, step=0):
     msg['Subject'] = 'Signature requise'
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
-    body = data.get('email_message', '') or ''
-    body += f"\n\nVeuillez cliquer sur le lien suivant pour signer le document : {link}"
+    body = (data.get('email_message', '') or '') + f"\n\nVeuillez cliquer sur le lien suivant pour signer le document : {link}"
     msg.set_content(body)
     try:
         smtp_server = os.getenv('SMTP_SERVER')
@@ -307,8 +305,9 @@ def send_email(session_id, step=0):
         server.login(smtp_user, smtp_pass)
         server.send_message(msg)
         server.quit()
+        print(f"[DEBUG] Email envoyé à {recipient}")
     except Exception as e:
-        print(f"Erreur lors de l'envoi de l'email : {e}")
+        print(f"[ERROR] Envoi du mail: {e}")
 
 def send_pdf_to_all(session_data):
     pdf_name = session_data.get('pdf')
@@ -347,8 +346,9 @@ def send_pdf_to_all(session_data):
             server.login(smtp_user, smtp_pass)
             server.send_message(msg)
             server.quit()
+            print(f"[DEBUG] Email final envoyé à {recipient}")
         except Exception as e:
-            print(f"Erreur lors de l'envoi de l'email final : {e}")
+            print(f"[ERROR] Envoi du mail final: {e}")
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
