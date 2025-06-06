@@ -351,4 +351,4 @@ def send_pdf_to_all(session_data):
             print(f"Erreur lors de l'envoi de l'email final : {e}")
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
