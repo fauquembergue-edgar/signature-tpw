@@ -313,19 +313,26 @@ def send_email(session_id, step=0):
     body = data.get('email_message', '') or ''
     body += f"\n\nVeuillez cliquer sur le lien suivant pour signer le document : {link}"
     msg.set_content(body)
+    print(f"[INFO] Tentative d'envoi de mail à {recipient} via {msg['From']} (server: {os.getenv('SMTP_SERVER')}:{os.getenv('SMTP_PORT')})")
     try:
         smtp_server = os.getenv('SMTP_SERVER')
         smtp_port = int(os.getenv('SMTP_PORT', 587))
         smtp_user = os.getenv('SMTP_USER')
         smtp_pass = os.getenv('SMTP_PASS')
-        server = smtplib.SMTP(smtp_server, smtp_port)
+        if not smtp_server or not smtp_user or not smtp_pass:
+            print("[ERREUR] Variables SMTP non définies. Vérifiez votre .env.")
+            print(f"SMTP_SERVER={smtp_server}, SMTP_USER={smtp_user}, SMTP_PASS={'OK' if smtp_pass else 'MISSING'}")
+            return
+        server = smtplib.SMTP(smtp_server, smtp_port, timeout=15)
+        print("[INFO] Connexion SMTP réussie.")
         server.starttls()
         server.login(smtp_user, smtp_pass)
+        print("[INFO] Login SMTP réussi.")
         server.send_message(msg)
         server.quit()
-        print(f"Email envoyé à {recipient}")
+        print(f"[SUCCÈS] Email envoyé à {recipient}")
     except Exception as e:
-        print(f"Erreur lors de l'envoi de l'email : {e}")
+        print(f"[ERREUR] lors de l'envoi de l'email : {e}")
 
 def send_pdf_to_all(session_data):
     pdf_name = session_data.get('pdf')
