@@ -214,7 +214,8 @@ canvas.addEventListener('click', function(event) {
     if (!value) return;
     field = { id, type: currentType, x, y, value };
   } else {
-    field = { id, type: currentType, signer_id: signerId, x, y, signed: false };
+    // Correction : injecte l'email dans le champ
+    field = { id, type: currentType, signer_id: signerId, email: email, x, y, signed: false };
   }
   fields.push(field);
 
@@ -265,7 +266,6 @@ function enableDrag(element, id) {
   element.ondragstart = () => false;
 }
 
-// ==== ROBUSTESSE ICI POUR LE FORMULAIRE DÉFINITION DES CHAMPS ====
 document.getElementById('assign-fields-form').onsubmit = function () {
   if (!currentPdf) {
     alert("Aucun PDF sélectionné !");
@@ -285,7 +285,7 @@ function saveTemplate() {
     if (f.type === "statictext") {
       return { type: f.type, x: f.x, y: f.y, value: f.value };
     } else {
-      return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id };
+      return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id, email: f.email };
     }
   });
 
