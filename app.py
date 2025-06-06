@@ -171,7 +171,7 @@ def save_template():
     path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
     with open(path, 'w') as f:
         json.dump({'pdf': data['pdf'], 'fields': data['fields']}, f)
-    return jsonify({'status': 'saved'})
+    return jsonify({'status': 'saved', 'pdf': data['pdf'], 'fields': data['fields']})
 
 @app.route('/load-template/<name>')
 def load_template(name):
@@ -190,6 +190,16 @@ def define_fields():
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
     fields = data['fields']
+    # Correction: injecte les emails à partir du signer_id en JS
+    signataires = {}
+    for f in fields:
+        if f.get("type") != "statictext" and "signer_id" in f and "email" in f:
+            signataires[f["signer_id"]] = f["email"]
+    for field in fields:
+        if field.get("type") != "statictext" and "signer_id" in field and "email" not in field:
+            sid = field["signer_id"]
+            if sid in signataires:
+                field["email"] = signataires[sid]
     for i, field in enumerate(fields):
         field['signed'] = False
         field['step'] = i
@@ -288,7 +298,7 @@ def send_email(session_id, step):
         except json.JSONDecodeError:
             print("Erreur : fichier JSON vide ou corrompu")
             return
-    recipient = next((fld['email'] for fld in data['fields'] if fld.get('step', 0) == step and fld["type"] != "statictext"), None)
+    recipient = next((fld.get('email') for fld in data['fields'] if fld.get('step', 0) == step and fld["type"] != "statictext" and fld.get('email')), None)
     if not recipient:
         print(f"Aucun destinataire trouvé pour l'étape {step}")
         return
