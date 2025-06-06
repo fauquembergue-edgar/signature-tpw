@@ -70,7 +70,7 @@ const sessionId = "{{ session_id }}";
 const step = {{ step }};
 const signers = {{ signers | tojson }};
 const fields = {{ fields_all | tojson }};
-const currentSignerId = {{ signer_id }}; // fournie par le backend dans render_template
+const currentSignerId = {{ signer_id }};
 const inputArea = document.getElementById('input-area');
 const submitBtn = document.getElementById('submit-btn');
 let completed = fields.map(f => f.signed);
@@ -155,18 +155,13 @@ function renderZones() {
     zone.dataset.index = index;
     zone.dataset.signer_id = f.signer_id;
 
-    let signerLabel = '';
-    if (f.signer_id !== undefined) {
-      const signer = signers.find(s => s.id == f.signer_id);
-      if (signer) signerLabel = signer.email;
-    }
-
+    // Texte sans adresse email
     if (f.type === 'signature') {
-      zone.textContent = signerLabel ? `Signature (${signerLabel})` : 'Signature';
+      zone.textContent = 'Signature';
     } else if (f.type === 'text') {
-      zone.textContent = signerLabel ? `Texte (${signerLabel})` : 'Texte';
+      zone.textContent = 'Texte';
     } else if (f.type === 'checkbox') {
-      zone.textContent = signerLabel ? `☐ (${signerLabel})` : '☐';
+      zone.textContent = '☐';
     }
 
     if (f.signer_id != currentSignerId) zone.classList.add('locked');
