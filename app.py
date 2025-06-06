@@ -200,10 +200,6 @@ def load_template(name):
 @app.route('/define-fields', methods=['POST'])
 def define_fields():
     data = json.loads(request.form['fields_json'])
-    pdf_filename = data.get('pdf')
-    if not pdf_filename:
-        return jsonify({'error': 'PDF manquant'}), 400
-
     message = request.form.get('email_message', '')
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
@@ -219,7 +215,7 @@ def define_fields():
                 field['h'] = 15
             else:
                 field['h'] = 40
-    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_filename)
+    pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
     html_width_px = 931.5
     html_height_px = 1250
 
@@ -227,7 +223,7 @@ def define_fields():
     apply_static_text_fields(pdf_path, fields, output_path=None)
 
     session_data = {
-        'pdf': pdf_filename,
+        'pdf': data['pdf'],
         'fields': fields,
         'email_message': message,
         'nom_demande': nom_demande
@@ -249,7 +245,6 @@ def define_fields():
             sessions={}
         )
 
-@app.route('/sign/<session_id>/<int:step>')
 @app.route('/sign/<session_id>/<int:step>')
 def sign(session_id, step):
     path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
