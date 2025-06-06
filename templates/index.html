@@ -193,13 +193,13 @@ canvas.addEventListener('click', function(event) {
   if (!currentType) return alert("Choisissez un type.");
   // Statictext ne nécessite pas de signataire
   let signerId = null;
-    let email = null;
-    if (currentType !== "statictext") {
-      const signerRadio = document.querySelector('input[name="signataire"]:checked');
-      if (!signerRadio) return alert("Sélectionnez un signataire.");
-      signerId = parseInt(signerRadio.value);
-      email = signataires.find(s => s.id === signerId).email;
-    }
+  let email = null;
+  if (currentType !== "statictext") {
+    const signerRadio = document.querySelector('input[name="signataire"]:checked');
+    if (!signerRadio) return alert("Sélectionnez un signataire.");
+    signerId = parseInt(signerRadio.value);
+    email = signataires.find(s => s.id === signerId).email;
+  }
   const rect = canvas.getBoundingClientRect();
   const x = (event.clientX - rect.left) / scale;
   const y = (event.clientY - rect.top) / scale;
@@ -265,17 +265,22 @@ function enableDrag(element, id) {
   element.ondragstart = () => false;
 }
 
+// ==== ROBUSTESSE ICI POUR LE FORMULAIRE DÉFINITION DES CHAMPS ====
 document.getElementById('assign-fields-form').onsubmit = function () {
+  if (!currentPdf) {
+    alert("Aucun PDF sélectionné !");
+    return false;
+  }
   document.getElementById('fields-json').value = JSON.stringify({ pdf: currentPdf, fields: fields });
   document.getElementById('email-message-hidden').value = document.getElementById('email-message').value;
   document.getElementById('nom-demande-hidden').value = document.getElementById('nom-demande').value;
+  return true;
 };
 
 function saveTemplate() {
   const name = document.getElementById('template-name').value.trim();
   if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
 
-  // On reconstruit les champs pour ne pas renvoyer d’e-mail, mais uniquement signer_id.
   const templateFields = fields.map(f => {
     if (f.type === "statictext") {
       return { type: f.type, x: f.x, y: f.y, value: f.value };
@@ -353,7 +358,7 @@ function loadTemplate() {
           div.style.top = (field.y * scale) + 'px';
           let color = "#338DFF";
           if (field.type !== "statictext") {
-            color = COLORS[signataires.findIndex(s => s.email === field.email) % COLORS.length];
+            color = COLORS[field.signer_id % COLORS.length];
           }
           div.style.border = `2px dashed ${color}`;
           const removeBtn = document.createElement('button');
