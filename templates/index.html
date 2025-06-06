@@ -265,13 +265,7 @@ function enableDrag(element, id) {
   element.ondragstart = () => false;
 }
 
-document.getElementById('assign-fields-form').onsubmit = function (e) {
-  // S'assurer que currentPdf existe (l'utilisateur a chargé un PDF ou un template)
-  if (!currentPdf) {
-    e.preventDefault();
-    alert("Vous devez d'abord charger un PDF ou un template avant de lancer le processus de signature.");
-    return;
-  }
+document.getElementById('assign-fields-form').onsubmit = function () {
   document.getElementById('fields-json').value = JSON.stringify({ pdf: currentPdf, fields: fields });
   document.getElementById('email-message-hidden').value = document.getElementById('email-message').value;
   document.getElementById('nom-demande-hidden').value = document.getElementById('nom-demande').value;
