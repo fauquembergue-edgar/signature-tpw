@@ -73,8 +73,8 @@
         {{ previous_message }}
       </div>
     {% endif %}
-    <label for="final-message"><strong>Message à joindre (optionnel) :</strong></label><br>
-    <textarea id="final-message" rows="3" cols="50" placeholder="Un commentaire pour tous les destinataires…"></textarea>
+    <label for="message-final"><strong>Message au prochain signataire (optionnel) :</strong></label><br>
+    <textarea id="message-final" rows="3" cols="50" placeholder="Un commentaire pour le prochain signataire…"></textarea>
   </div>
   <button id="submit-btn">Valider et envoyer</button>
 
@@ -362,8 +362,10 @@ function checkCompletion() {
   if (allDone) submitBtn.style.display = 'inline-block';
 }
 
+// MODIFICATION: id textarea/message changé pour message-final (plus explicite),
+// et le champ est bien envoyé au backend pour chaque signataire.
 submitBtn.onclick = () => {
-  const finalMessage = document.getElementById('final-message').value;
+  const finalMessage = document.getElementById('message-final').value;
   fetch('/finalise-signature', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
