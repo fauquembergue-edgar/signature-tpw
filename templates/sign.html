@@ -154,6 +154,7 @@ function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
+    if (f.signed) return; // <<--- AJOUT : Ne pas afficher les zones déjà signées/remplies
 
     const zone = document.createElement('div');
     zone.className = 'zone';
@@ -230,6 +231,7 @@ function handleClick(zone, type, index) {
         completed[index] = true;
         inputArea.innerHTML = '';
         checkCompletion();
+        renderZones(); // Ajout : réaffiche les zones (pour cacher celles signées)
       });
     };
     inputArea.appendChild(input);
@@ -285,6 +287,7 @@ function handleClick(zone, type, index) {
         completed[index] = true;
         inputArea.innerHTML = '';
         checkCompletion();
+        renderZones(); // Ajout : réaffiche les zones (pour cacher celles signées)
       });
     };
 
@@ -311,7 +314,10 @@ function sendSigFile(index) {
         html_width_px: canvas.width,
         html_height_px: canvas.height
       })
-    }).then(() => updateZone(index));
+    }).then(() => {
+      updateZone(index);
+      renderZones(); // Ajout pour cacher la zone signée
+    });
   };
   if (file) reader.readAsDataURL(file);
 }
@@ -343,14 +349,19 @@ function sendSigDraw(index) {
       html_width_px: canvas.width,
       html_height_px: canvas.height
     })
-  }).then(() => updateZone(index));
+  }).then(() => {
+    updateZone(index);
+    renderZones(); // Ajout pour cacher la zone signée
+  });
 }
 
 function updateZone(index) {
   const zone = document.querySelector(`.zone[data-index='${index}']`);
-  zone.textContent = '✅';
-  zone.style.border = '2px solid green';
-  zone.classList.add('locked');
+  if(zone) {
+    zone.textContent = '✅';
+    zone.style.border = '2px solid green';
+    zone.classList.add('locked');
+  }
   completed[index] = true;
   inputArea.innerHTML = '';
   checkCompletion();
@@ -362,8 +373,6 @@ function checkCompletion() {
   if (allDone) submitBtn.style.display = 'inline-block';
 }
 
-// MODIFICATION: id textarea/message changé pour message-final (plus explicite),
-// et le champ est bien envoyé au backend pour chaque signataire.
 submitBtn.onclick = () => {
   const finalMessage = document.getElementById('message-final').value;
   fetch('/finalise-signature', {
