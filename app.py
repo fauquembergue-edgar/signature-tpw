@@ -47,11 +47,13 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
 
 def apply_text(pdf_path, x, y, text, page_num=0, offset_x=0, offset_y=0, font_size=14):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    # Inversion de l'axe Y
+    y_pdf = pdf_height - y - font_size
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.setFont("Helvetica", font_size)
     can.setFillColorRGB(0, 0, 0)
-    can.drawString(x + offset_x, y + offset_y, text)
+    can.drawString(x + offset_x, y_pdf + offset_y, text)
     can.save()
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
@@ -67,20 +69,24 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, w, h, page_num=0, off
     img_io = io.BytesIO()
     image.save(img_io, format="PNG")
     img_io.seek(0)
-    can.drawImage(ImageReader(img_io), x + offset_x, y + offset_y, width=w, height=h, mask='auto')
+    # Inversion de l'axe Y pour la signature
+    y_pdf = pdf_height - y - h
+    can.drawImage(ImageReader(img_io), x + offset_x, y_pdf + offset_y, width=w, height=h, mask='auto')
     can.save()
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
 def apply_checkbox(pdf_path, x, y, checked, size=14, page_num=0, offset_x=0, offset_y=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
+    # Inversion de l'axe Y pour la checkbox
+    y_pdf = pdf_height - y - size
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    can.rect(x + offset_x, y + offset_y, size, size)
+    can.rect(x + offset_x, y_pdf + offset_y, size, size)
     if checked:
         can.setLineWidth(2)
-        can.line(x + offset_x, y + offset_y, x + offset_x + size, y + offset_y + size)
-        can.line(x + offset_x, y + offset_y + size, x + offset_x + size, y + offset_y)
+        can.line(x + offset_x, y_pdf + offset_y, x + offset_x + size, y_pdf + offset_y + size)
+        can.line(x + offset_x, y_pdf + offset_y + size, x + offset_x + size, y_pdf + offset_y)
     can.save()
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
@@ -98,8 +104,10 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, off
         y_field  = float(field.get("y", 0))
         value    = field.get("value", "")
         font_size= float(field.get("font_size", 14))
+        # Inversion de l'axe Y pour le champ statique
+        y_pdf = pdf_h - y_field - font_size
         can.setFont("Helvetica", font_size)
-        can.drawString(x_field + offset_x, y_field + offset_y, value)
+        can.drawString(x_field + offset_x, y_pdf + offset_y, value)
     can.save()
     packet.seek(0)
     overlay_pdf = PdfReader(packet)
