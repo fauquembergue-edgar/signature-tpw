@@ -297,12 +297,15 @@ def finalise_signature():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
-    if 'message_final' in data:
+    # Toujours enregistrer le message final si fourni
+    if data.get('message_final') is not None:
         session_data['message_final'] = data['message_final']
     all_fields = session_data['fields']
     current_step = max(f['step'] for f in all_fields if f['signed']) if any(f['signed'] for f in all_fields) else 0
     remaining_same = [f for f in all_fields if f['step']==current_step and not f['signed'] and f["type"] != "statictext"]
     if remaining_same:
+        with open(session_path, 'w') as f:
+            json.dump(session_data, f)
         return jsonify({'status': 'incomplete'})
     remaining = [f for f in all_fields if not f['signed'] and f["type"] != "statictext"]
     if remaining:
