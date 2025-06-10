@@ -98,7 +98,7 @@
     }
     .btn {
       background: var(--tpw-btn);
-      color: white;
+      color: white !important;
       border: none;
       border-radius: 7px;
       padding: 10px 22px;
@@ -107,16 +107,16 @@
       cursor: pointer;
       font-family: 'Montserrat', Arial, sans-serif;
       font-weight: 500;
-      transition: background .17s, box-shadow .12s;
+      transition: background .17s, box-shadow .12s, color .17s;
       box-shadow: 0 1px 3px #0002;
     }
     .btn:active, .btn:hover {
       background: var(--tpw-btn-hover);
-      box-shadow: 0 2px 8px #27348b22;
+      color: #fff !important;
     }
     .btn-accent {
       background: var(--tpw-accent);
-      color: white;
+      color: white !important;
       font-weight: 700;
       border: none;
     }
@@ -144,11 +144,13 @@
       font-family: 'Roboto', Arial, sans-serif;
       background: #f8fafb;
       box-sizing: border-box;
+      color: var(--tpw-bleu-fonce);
     }
     .form-section input[type="file"] {
       border: none;
       background: transparent;
       padding-left: 0;
+      color: #181c55;
     }
     .legend-box {
       display: inline-block;
@@ -268,13 +270,15 @@
 <main>
   <div id="left">
     <h2>Créer un formulaire PDF à signer</h2>
+
     <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data" class="form-section">
       <label for="pdf">Charger un PDF à annoter</label>
       <input type="file" name="pdf" id="pdf" accept=".pdf" required>
       <input type="submit" value="Charger le PDF" class="btn btn-accent">
     </form>
 
-    <div class="form-section">
+    <!-- Type de champ placé juste au-dessus du PDF -->
+    <div class="form-section" id="champ-section" style="margin-bottom: 12px;">
       <label>Type de champ à ajouter :</label>
       <button class="btn" onclick="selectType('text')">Zone de texte</button>
       <button class="btn" onclick="selectType('signature')">Zone de signature</button>
