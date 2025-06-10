@@ -251,6 +251,7 @@ def sign(session_id, step):
     # Trouve le currentSignerId pour ce step (le signataire de ce step)
     fields = [f for f in session_data['fields'] if f.get('step', 0) == step]
     currentSignerId = fields[0]['signer_id'] if fields and 'signer_id' in fields[0] else None
+    # AJOUT : passer le message_final actuel
     return render_template(
         'sign.html',
         pdf=session_data['pdf'],
@@ -259,9 +260,9 @@ def sign(session_id, step):
         fields_json=fields,
         fields_all=session_data['fields'],
         signers=signers,
-        signer_id=currentSignerId
+        signer_id=currentSignerId,
+        message_final=session_data.get("message_final", "")
     )
-
 @app.route('/fill-field', methods=['POST'])
 def fill_field():
     data = request.get_json()
