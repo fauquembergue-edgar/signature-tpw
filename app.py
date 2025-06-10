@@ -310,8 +310,8 @@ def finalise_signature():
     remaining = [f for f in all_fields if not f['signed'] and f["type"] != "statictext"]
     if remaining:
         next_step = min(f['step'] for f in remaining)
-        send_email(data['session_id'], next_step)
-        # On garde le message en mémoire pour le mail du prochain signataire, puis on efface pour ne pas transmettre à l'autre étape suivante
+        send_email(data['session_id'], next_step)  # message_final sera inclus dans l'email
+        # On efface le message SEULEMENT APRES l'envoi du mail au prochain signataire
         session_data['message_final'] = ""
     else:
         send_pdf_to_all(session_data)
@@ -343,7 +343,7 @@ def send_email(session_id, step):
     body = data.get('email_message') or f"Bonjour, veuillez signer ici : {link}"
     message_final = data.get('message_final', '')
     if message_final:
-        body += f"\n\nMessage du précédent signataire :\n{message_final}"
+        body += f"\n\nMessage du signataire précédent :\n{message_final}"
     if link not in body:
         body = f"{body}\n{link}"
     msg.set_content(body)
