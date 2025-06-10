@@ -190,7 +190,6 @@ def define_fields():
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
     fields = data['fields']
-    # Correction: injecte les emails à partir du signer_id en JS
     signataires = {}
     for f in fields:
         if f.get("type") != "statictext" and "signer_id" in f and "email" in f:
@@ -248,10 +247,8 @@ def sign(session_id, step):
             s = {'id': f['signer_id'], 'email': f['email']}
             if s not in signers:
                 signers.append(s)
-    # Trouve le currentSignerId pour ce step (le signataire de ce step)
     fields = [f for f in session_data['fields'] if f.get('step', 0) == step]
     currentSignerId = fields[0]['signer_id'] if fields and 'signer_id' in fields[0] else None
-    # AJOUT : passer le message_final actuel
     return render_template(
         'sign.html',
         pdf=session_data['pdf'],
@@ -260,9 +257,10 @@ def sign(session_id, step):
         fields_json=fields,
         fields_all=session_data['fields'],
         signers=signers,
-        signer_id=currentSignerId,
-        message_final=session_data.get("message_final", "")
+        signer_id=currentSignerId
+        # message_final n'est plus passé ici
     )
+
 @app.route('/fill-field', methods=['POST'])
 def fill_field():
     data = request.get_json()
@@ -312,6 +310,7 @@ def finalise_signature():
     if remaining:
         next_step = min(f['step'] for f in remaining)
         send_email(data['session_id'], next_step)
+        session_data['message_final'] = ""  # Efface le message pour le champ du suivant
     else:
         send_pdf_to_all(session_data)
     with open(session_path, 'w') as f:
@@ -340,6 +339,9 @@ def send_email(session_id, step):
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
     body = data.get('email_message') or f"Bonjour, veuillez signer ici : {link}"
+    message_final = data.get('message_final', '')
+    if message_final:
+        body += f"\n\nMessage du précédent signataire :\n{message_final}"
     if link not in body:
         body = f"{body}\n{link}"
     msg.set_content(body)
