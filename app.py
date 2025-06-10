@@ -226,7 +226,7 @@ def define_fields():
         json.dump(session_data, f)
     signable_fields = [f for f in fields if f.get('type') not in ('statictext',)]
     if signable_fields:
-        send_email(session_id, step=0)
+        send_email(session_id, step=0, message_final=None)
         return render_template("notified.html", session_id=session_id)
     else:
         return render_template(
@@ -310,8 +310,7 @@ def finalise_signature():
     remaining = [f for f in all_fields if not f['signed'] and f["type"] != "statictext"]
     if remaining:
         next_step = min(f['step'] for f in remaining)
-        send_email(data['session_id'], next_step)  # message_final sera inclus dans l'email
-        # On efface le message SEULEMENT APRES l'envoi du mail au prochain signataire
+        send_email(data['session_id'], next_step, message_final=session_data.get('message_final'))
         session_data['message_final'] = ""
     else:
         send_pdf_to_all(session_data)
@@ -319,7 +318,7 @@ def finalise_signature():
         json.dump(session_data, f)
     return jsonify({'status': 'finalised'})
 
-def send_email(session_id, step):
+def send_email(session_id, step, message_final=None):
     session_file = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     if not os.path.isfile(session_file) or os.path.getsize(session_file) == 0:
         print("Le fichier de session est vide ou absent.")
@@ -341,7 +340,8 @@ def send_email(session_id, step):
     msg['From'] = os.getenv('SMTP_USER')
     msg['To'] = recipient
     body = data.get('email_message') or f"Bonjour, veuillez signer ici : {link}"
-    message_final = data.get('message_final', '')
+    if message_final is None:
+        message_final = data.get('message_final', '')
     if message_final:
         body += f"\n\nMessage du signataire précédent :\n{message_final}"
     if link not in body:
