@@ -279,13 +279,6 @@
     </form>
 
     <div class="form-section">
-      <label>Ajouter des signataires :</label>
-      <div id="signataires-list"></div>
-      <input type="email" id="new-email" placeholder="Email du signataire">
-      <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
-    </div>
-
-    <div class="form-section">
       <label for="nom-demande">Nom de la demande :</label>
       <input type="text" id="nom-demande" placeholder="Nom du processus">
     </div>
@@ -306,6 +299,14 @@
         {% endfor %}
       </select>
       <button class="btn" onclick="loadTemplate()">📂 Charger</button>
+    </div>
+
+    <!-- Ajout des signataires juste au dessus de types de champ -->
+    <div class="form-section">
+      <label>Ajouter des signataires :</label>
+      <div id="signataires-list"></div>
+      <input type="email" id="new-email" placeholder="Email du signataire">
+      <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
     </div>
 
     <!-- Types de champ à ajouter JUSTE au-dessus du PDF -->
