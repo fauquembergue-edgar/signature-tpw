@@ -98,7 +98,7 @@
     }
     .btn {
       background: var(--tpw-btn);
-      color: white !important;
+      color: #fff !important;
       border: none;
       border-radius: 7px;
       padding: 10px 22px;
@@ -109,14 +109,15 @@
       font-weight: 500;
       transition: background .17s, box-shadow .12s, color .17s;
       box-shadow: 0 1px 3px #0002;
+      outline: none !important;
     }
     .btn:active, .btn:hover {
       background: var(--tpw-btn-hover);
       color: #fff !important;
     }
     .btn-accent {
-      background: var(--tpw-accent);
-      color: white !important;
+      background: var(--tpw-accent) !important;
+      color: #fff !important;
       font-weight: 700;
       border: none;
     }
@@ -196,7 +197,7 @@
     #pdf-container {
       position: relative;
       display: none;
-      margin: 28px 0;
+      margin: 28px 0 0 0;
       border-radius: 8px;
       overflow: hidden;
       box-shadow: 0 4px 24px #27348b13;
@@ -277,16 +278,6 @@
       <input type="submit" value="Charger le PDF" class="btn btn-accent">
     </form>
 
-    <!-- Type de champ placé juste au-dessus du PDF -->
-    <div class="form-section" id="champ-section" style="margin-bottom: 12px;">
-      <label>Type de champ à ajouter :</label>
-      <button class="btn" onclick="selectType('text')">Zone de texte</button>
-      <button class="btn" onclick="selectType('signature')">Zone de signature</button>
-      <button class="btn" onclick="selectType('checkbox')">Case à cocher</button>
-      <button class="btn btn-accent" onclick="selectType('statictext')">Zone texte statique</button>
-      <span style="margin-left:8px; color:#888; font-size:0.95em;">(Cliquez sur le PDF pour placer le champ)</span>
-    </div>
-
     <div class="form-section">
       <label>Ajouter des signataires :</label>
       <div id="signataires-list"></div>
@@ -315,6 +306,16 @@
         {% endfor %}
       </select>
       <button class="btn" onclick="loadTemplate()">📂 Charger</button>
+    </div>
+
+    <!-- Types de champ à ajouter JUSTE au-dessus du PDF -->
+    <div class="form-section" id="champ-section" style="margin-bottom: 0;">
+      <label>Type de champ à ajouter :</label>
+      <button class="btn" onclick="selectType('text')">Zone de texte</button>
+      <button class="btn" onclick="selectType('signature')">Zone de signature</button>
+      <button class="btn" onclick="selectType('checkbox')">Case à cocher</button>
+      <button class="btn btn-accent" onclick="selectType('statictext')">Zone texte statique</button>
+      <span style="margin-left:8px; color:#888; font-size:0.95em;">(Cliquez sur le PDF pour placer le champ)</span>
     </div>
 
     <div id="pdf-container">
@@ -404,10 +405,8 @@ function updateSignatairesList() {
   });
 }
 
-// --- Ajout du champ directement sur le PDF ---
 canvas.addEventListener('click', function(event) {
   if (!currentType) return alert("Choisissez un type.");
-  // Statictext ne nécessite pas de signataire
   let signerId = null;
   let email = null;
   if (currentType !== "statictext") {
