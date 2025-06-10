@@ -2,47 +2,76 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Signature du document</title>
+  <title>Signature du document - TPW Nord Concassage</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
-    .legend { margin-bottom: 15px; }
+    body { font-family: 'Roboto', Arial, sans-serif; background: #f4f4f4; padding: 20px; }
     .pdf-wrapper { position: relative; display: inline-block; }
     canvas { border: 1px solid #ccc; background: #fff; }
     .zone {
       position: absolute;
-      border: 2px dashed;
+      border: 2px dashed #FF5733;
       background: rgba(255,255,255,0.9);
-      font-size: 13px;
+      font-size: 14px;
       z-index: 10;
-      transform: none;
       cursor: pointer;
       box-sizing: border-box;
       padding: 0 !important;
       margin: 0 !important;
       line-height: 1 !important;
+      transition: box-shadow .1s;
     }
-    .zone.locked {
-      pointer-events: none;
-      opacity: 0.5;
-      cursor: default;
-    }
-    .legend-box { display: inline-block; width: 12px; height: 12px; margin-right: 5px; }
-    #input-area {
-      margin-top: 20px;
+    .zone.signed {
+      border: 2px solid #33C964;
+      background: rgba(240,255,240,0.7);
+      color: #33C964;
+      cursor: not-allowed;
       pointer-events: none;
     }
-    #submit-btn { display: none; margin-top: 20px; padding: 10px 20px; }
-    @media (max-width: 600px) {
-      #pdf-canvas, .pdf-wrapper {
-        width: 100% !important;
-        height: auto !important;
-        max-width: 100vw;
-      }
-      .zone {
-        font-size: 11px;
-      }
+    .zone.editing {
+      box-shadow: 0 0 12px #338DFF77;
+      z-index: 100;
+    }
+    .zone input, .zone textarea {
+      width: 100%;
+      height: 100%;
+      font-size: 1em;
+      border: 1.5px solid #338DFF;
+      border-radius: 3px;
+      background: #fff;
+      color: #181c55;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .zone .inline-canvas {
+      width: 100%; height: 100%;
+      border-radius: 3px;
+      background: #f8fafb;
+      border: 1.5px solid #338DFF;
+      display: block;
+    }
+    .zone .sig-actions {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+      margin-top: 2px;
+    }
+    .zone .sig-actions button {
+      font-size: 0.9em;
+      padding: 2px 8px;
+      border-radius: 3px;
+      border: none;
+      background: #338DFF;
+      color: #fff;
+      cursor: pointer;
+    }
+    .checkbox-real {
+      width: 20px;
+      height: 20px;
+      vertical-align: middle;
+      accent-color: #FF5733;
     }
     .previous-message {
       background: #eef;
@@ -50,114 +79,73 @@
       color: #338DFF;
       padding: 8px 10px;
       margin-bottom: 10px;
+      max-width: 500px;
+    }
+    .msg-final-section {
+      margin: 24px 0 6px 0;
+      max-width: 500px;
+    }
+    #submit-btn {
+      display: inline-block;
+      margin-top: 18px;
+      padding: 10px 24px;
+      font-size: 1.08em;
+      background: #144372;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: 'Montserrat', Arial, sans-serif;
+      font-weight: 500;
+      transition: background .18s;
+      box-shadow: 0 1px 2px #0002;
+    }
+    #submit-btn:active, #submit-btn:hover {
+      background: #0f3152;
+    }
+    @media (max-width: 740px) {
+      #pdf-canvas, .pdf-wrapper { width: 98vw !important; height: auto !important; max-width: 100vw; }
     }
   </style>
 </head>
 <body>
   <h2>Signature du document</h2>
-
-  <div class="legend">
-    <strong>Vos zones à remplir sont en :</strong>
-    <span class="legend-box" style="background-color: #FF5733;"></span> Orange
-  </div>
-
   <div class="pdf-wrapper" id="pdf-container">
     <canvas id="pdf-canvas"></canvas>
   </div>
 
-  <div id="input-area"></div>
-  <div style="margin-top:20px;">
-    {% if previous_message %}
-      <div class="previous-message">
-        <strong>Message du signataire précédent&nbsp;:</strong><br>
-        {{ previous_message }}
-      </div>
-    {% endif %}
+  {% if previous_message %}
+    <div class="previous-message">
+      <strong>Message du signataire précédent&nbsp;:</strong><br>
+      {{ previous_message }}
+    </div>
+  {% endif %}
+  <div class="msg-final-section">
     <label for="message-final"><strong>Message au prochain signataire (optionnel) :</strong></label><br>
     <textarea id="message-final" rows="3" cols="50" placeholder="Un commentaire pour le prochain signataire…"></textarea>
   </div>
-  <button id="submit-btn">Valider et envoyer</button>
+  <button id="submit-btn">Valider toutes mes zones et envoyer</button>
 
 <script>
 const sessionId = "{{ session_id }}";
 const step = {{ step }};
-const signers = {{ signers | tojson }};
 const fields = {{ fields_all | tojson }};
 const currentSignerId = {{ signer_id }};
-const inputArea = document.getElementById('input-area');
-const submitBtn = document.getElementById('submit-btn');
 let completed = fields.map(f => f.signed);
 
 const canvas = document.getElementById('pdf-canvas');
-const ctx = canvas.getContext('2d');
 const container = document.getElementById('pdf-container');
+const submitBtn = document.getElementById('submit-btn');
 
-function initSigCanvasMobileDesktop(canvas) {
-  const ctx = canvas.getContext('2d');
-  let drawing = false, last = {x: 0, y: 0};
-
-  function getXY(e) {
-    const rect = canvas.getBoundingClientRect();
-    let x, y;
-    if (e.touches && e.touches.length === 1) {
-      x = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
-      y = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
-    } else if (e.offsetX !== undefined) {
-      x = e.offsetX * (canvas.width / rect.width);
-      y = e.offsetY * (canvas.height / rect.height);
-    }
-    return {x, y};
-  }
-
-  canvas.addEventListener('mousedown', e => { drawing = true; last = getXY(e); });
-  canvas.addEventListener('mousemove', e => {
-    if (!drawing) return;
-    const xy = getXY(e);
-    ctx.beginPath();
-    ctx.moveTo(last.x, last.y);
-    ctx.lineTo(xy.x, xy.y);
-    ctx.stroke();
-    last = xy;
-  });
-  canvas.addEventListener('mouseup', () => { drawing = false; });
-  canvas.addEventListener('mouseout', () => { drawing = false; });
-
-  canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    drawing = true;
-    last = getXY(e);
-  });
-  canvas.addEventListener('touchmove', e => {
-    if (!drawing) return;
-    e.preventDefault();
-    const xy = getXY(e);
-    ctx.beginPath();
-    ctx.moveTo(last.x, last.y);
-    ctx.lineTo(xy.x, xy.y);
-    ctx.stroke();
-    last = xy;
-  });
-  canvas.addEventListener('touchend', e => {
-    e.preventDefault();
-    drawing = false;
-  });
-  canvas.addEventListener('touchcancel', e => {
-    e.preventDefault();
-    drawing = false;
-  });
-
-  return () => ctx.clearRect(0, 0, canvas.width, canvas.height);
-}
+let scale = 1.5; // adapt later if responsive
 
 function renderZones() {
-  const scale = canvas.getBoundingClientRect().width / canvas.width;
   document.querySelectorAll('.zone').forEach(z => z.remove());
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
-    if (f.signed) return; // <<--- AJOUT : Ne pas afficher les zones déjà signées/remplies
-
     const zone = document.createElement('div');
     zone.className = 'zone';
+    if (f.signed) zone.classList.add('signed');
     zone.style.left   = (f.x * scale) + "px";
     zone.style.top    = (f.y * scale) + "px";
     zone.style.width  = ((f.w || 100) * scale) + "px";
@@ -166,50 +154,65 @@ function renderZones() {
     zone.dataset.index = index;
     zone.dataset.signer_id = f.signer_id;
 
-    if (f.type === 'signature') {
-      zone.textContent = 'Signature';
-    } else if (f.type === 'text') {
-      zone.textContent = 'Texte';
-    } else if (f.type === 'checkbox') {
-      zone.textContent = '☐';
+    // Affichage valeur si déjà signée
+    if (f.signed) {
+      if (f.type === 'text') {
+        zone.textContent = f.value;
+      }
+      if (f.type === 'signature') {
+        let img = document.createElement('img');
+        img.src = f.value;
+        img.style.width = "100%"; img.style.height = "100%";
+        img.style.objectFit = "contain";
+        zone.appendChild(img);
+      }
+      if (f.type === 'checkbox') {
+        zone.textContent = f.value === true || f.value === "true" || f.value === "on" ? "☑" : "☐";
+      }
+      container.appendChild(zone);
+      return;
     }
 
-    if (f.signer_id != currentSignerId) zone.classList.add('locked');
-    if (f.type !== 'statictext')
-      zone.style.borderColor = f.signer_id == currentSignerId ? '#FF5733' : '#ccc';
-
-    container.appendChild(zone);
-
+    // Non signée, zone éditable
     if (f.signer_id == currentSignerId) {
-      zone.addEventListener('click', () => handleClick(zone, f.type, index));
+      zone.addEventListener('click', function(e) {
+        e.stopPropagation();
+        startEditZone(zone, f, index);
+      });
+    } else {
+      zone.style.borderColor = "#cccccc";
+      zone.style.cursor = "not-allowed";
     }
+    if (f.type === "text") zone.textContent = "Zone de texte";
+    if (f.type === "signature") zone.textContent = "Signature";
+    if (f.type === "checkbox") zone.textContent = "☐";
+    container.appendChild(zone);
   });
 }
 
-window.addEventListener('resize', renderZones);
-
-pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
-  pdf.getPage(1).then(page => {
-    const viewport = page.getViewport({ scale: 1 });
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
-    return page.render({ canvasContext: ctx, viewport }).promise;
-  })
-).then(renderZones);
-
-function handleClick(zone, type, index) {
-  inputArea.innerHTML = '';
-  inputArea.style.pointerEvents = 'none';
-
-  if (type === 'text') {
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = 'Votre réponse';
-    const submit = document.createElement('button');
-    submit.textContent = 'Valider';
-    submit.onclick = () => {
+function startEditZone(zone, field, index) {
+  // Évite double édition
+  if (zone.classList.contains('editing')) return;
+  // Vire le texte
+  zone.innerHTML = "";
+  zone.classList.add('editing');
+  // Selon le type
+  if (field.type === "text") {
+    let input = document.createElement('input');
+    input.type = "text";
+    input.value = field.value || "";
+    input.placeholder = "Entrez le texte…";
+    input.autofocus = true;
+    input.onkeydown = function(e) {
+      if (e.key === "Enter") validateInlineText();
+      if (e.key === "Escape") cancelInlineEdit();
+    };
+    input.onblur = function() { validateInlineText(); };
+    zone.appendChild(input);
+    input.focus();
+    function validateInlineText() {
+      let val = input.value.trim();
+      if (!val) { cancelInlineEdit(); return; }
       fetch('/fill-field', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -217,55 +220,118 @@ function handleClick(zone, type, index) {
           session_id: sessionId,
           step: step,
           field_index: index,
-          value: input.value,
-          x_px: fields[index].x,
-          y_px: fields[index].y,
-          field_height: fields[index].h || 40,
+          value: val,
+          x_px: field.x,
+          y_px: field.y,
+          field_height: field.h || 40,
           html_width_px: canvas.width,
           html_height_px: canvas.height
         })
       }).then(() => {
-        zone.textContent = input.value;
-        zone.style.border = '2px solid green';
-        zone.classList.add('locked');
-        completed[index] = true;
-        inputArea.innerHTML = '';
+        fields[index].value = val;
+        fields[index].signed = true;
+        renderZones();
         checkCompletion();
-        renderZones(); // Ajout : réaffiche les zones (pour cacher celles signées)
+      });
+    }
+    function cancelInlineEdit() { renderZones(); }
+  }
+  else if (field.type === "signature") {
+    // Ajoute un <canvas> pour dessiner la signature
+    let signCanvas = document.createElement('canvas');
+    signCanvas.width = zone.offsetWidth;
+    signCanvas.height = zone.offsetHeight-28;
+    signCanvas.className = "inline-canvas";
+    let ctx = signCanvas.getContext("2d");
+    let drawing = false, last = null;
+    signCanvas.addEventListener('mousedown', e => { drawing = true; last = getXY(e, signCanvas); });
+    signCanvas.addEventListener('mousemove', e => {
+      if (!drawing) return;
+      let xy = getXY(e, signCanvas);
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(xy.x, xy.y);
+      ctx.stroke();
+      last = xy;
+    });
+    signCanvas.addEventListener('mouseup', () => { drawing = false; });
+    signCanvas.addEventListener('mouseout', () => { drawing = false; });
+    signCanvas.addEventListener('touchstart', e => { drawing = true; last = getXY(e, signCanvas, true); });
+    signCanvas.addEventListener('touchmove', e => {
+      if (!drawing) return;
+      let xy = getXY(e, signCanvas, true);
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(xy.x, xy.y);
+      ctx.stroke();
+      last = xy;
+    });
+    signCanvas.addEventListener('touchend', () => { drawing = false; });
+    signCanvas.addEventListener('touchcancel', () => { drawing = false; });
+    function getXY(e, can, isTouch) {
+      const rect = can.getBoundingClientRect();
+      let x, y;
+      if (isTouch && e.touches && e.touches.length === 1) {
+        x = (e.touches[0].clientX - rect.left) * (can.width / rect.width);
+        y = (e.touches[0].clientY - rect.top) * (can.height / rect.height);
+      } else if (e.offsetX !== undefined) {
+        x = e.offsetX * (can.width / rect.width);
+        y = e.offsetY * (can.height / rect.height);
+      }
+      return {x, y};
+    }
+    zone.appendChild(signCanvas);
+
+    // Actions (Effacer / Valider)
+    let actions = document.createElement('div');
+    actions.className = "sig-actions";
+    let clearBtn = document.createElement('button');
+    clearBtn.textContent = "Effacer";
+    clearBtn.onclick = function(e) { ctx.clearRect(0,0,signCanvas.width,signCanvas.height); };
+    let validerBtn = document.createElement('button');
+    validerBtn.textContent = "Valider";
+    validerBtn.onclick = function(e) {
+      // Vérifie si la signature est non vide
+      let imgData = ctx.getImageData(0,0,signCanvas.width,signCanvas.height).data;
+      let isBlank = true;
+      for(let i=0;i<imgData.length;i++) if(imgData[i]!==0) { isBlank=false; break;}
+      if (isBlank) { alert("Merci de signer dans la zone !"); return; }
+      let dataURL = signCanvas.toDataURL("image/png");
+      fetch('/fill-field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          step: step,
+          field_index: index,
+          value: dataURL,
+          x_px: field.x,
+          y_px: field.y,
+          field_height: field.h || 40,
+          html_width_px: canvas.width,
+          html_height_px: canvas.height
+        })
+      }).then(() => {
+        fields[index].value = dataURL;
+        fields[index].signed = true;
+        renderZones();
+        checkCompletion();
       });
     };
-    inputArea.appendChild(input);
-    inputArea.appendChild(submit);
-    inputArea.style.pointerEvents = 'auto';
-    input.style.pointerEvents = 'auto';
-    submit.style.pointerEvents = 'auto';
+    let cancelBtn = document.createElement('button');
+    cancelBtn.textContent = "Annuler";
+    cancelBtn.onclick = function(e) { renderZones(); };
+    actions.appendChild(clearBtn);
+    actions.appendChild(validerBtn);
+    actions.appendChild(cancelBtn);
+    zone.appendChild(actions);
   }
-  else if (type === 'signature') {
-    inputArea.style.pointerEvents = 'auto';
-    inputArea.innerHTML = `
-      <p>Signature :</p>
-      <input type="file" id="sigFile" accept="image/png" style="pointer-events:auto;">
-      <button id="sigFileBtn" style="pointer-events:auto;">Valider image</button><br><br>
-      <canvas id="sigCanvas" width="300" height="100" style="border:1px solid #ccc;display:block;margin-bottom:7px;touch-action:none;"></canvas><br>
-      <button id="sigClearBtn" style="pointer-events:auto;">Effacer</button>
-      <button id="sigDrawBtn" style="pointer-events:auto;">Valider dessin</button>
-    `;
-    document.getElementById('sigFileBtn').onclick = () => sendSigFile(index);
-    document.getElementById('sigDrawBtn').onclick = () => sendSigDraw(index);
-    const clear = initSigCanvasMobileDesktop(document.getElementById('sigCanvas'));
-    document.getElementById('sigClearBtn').onclick = clear;
-  }
-  else if (type === 'checkbox') {
-    inputArea.style.pointerEvents = 'auto';
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.style.pointerEvents = 'auto';
-
-    const submit = document.createElement('button');
-    submit.textContent = 'Valider';
-    submit.style.pointerEvents = 'auto';
-    submit.onclick = () => {
+  else if (field.type === "checkbox") {
+    let checkbox = document.createElement('input');
+    checkbox.type = "checkbox";
+    checkbox.className = "checkbox-real";
+    checkbox.checked = field.value === true || field.value === "true" || field.value === "on";
+    checkbox.onchange = function() {
       fetch('/fill-field', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -274,103 +340,27 @@ function handleClick(zone, type, index) {
           step: step,
           field_index: index,
           value: checkbox.checked,
-          x_px: fields[index].x,
-          y_px: fields[index].y,
-          field_height: fields[index].h || 15,
+          x_px: field.x,
+          y_px: field.y,
+          field_height: field.h || 15,
           html_width_px: canvas.width,
           html_height_px: canvas.height
         })
       }).then(() => {
-        zone.textContent = checkbox.checked ? '☑' : '☐';
-        zone.style.border = '2px solid green';
-        zone.classList.add('locked');
-        completed[index] = true;
-        inputArea.innerHTML = '';
+        fields[index].value = checkbox.checked;
+        fields[index].signed = true;
+        renderZones();
         checkCompletion();
-        renderZones(); // Ajout : réaffiche les zones (pour cacher celles signées)
       });
     };
-
-    inputArea.appendChild(checkbox);
-    inputArea.appendChild(submit);
+    zone.appendChild(checkbox);
   }
-}
-
-function sendSigFile(index) {
-  const file = document.getElementById('sigFile').files[0];
-  const reader = new FileReader();
-  reader.onload = () => {
-    fetch('/fill-field', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_id: sessionId,
-        step: step,
-        field_index: index,
-        value: reader.result,
-        x_px: fields[index].x,
-        y_px: fields[index].y,
-        field_height: fields[index].h || 40,
-        html_width_px: canvas.width,
-        html_height_px: canvas.height
-      })
-    }).then(() => {
-      updateZone(index);
-      renderZones(); // Ajout pour cacher la zone signée
-    });
-  };
-  if (file) reader.readAsDataURL(file);
-}
-
-function sendSigDraw(index) {
-  const canvasDraw = document.getElementById('sigCanvas');
-  const ctxDraw = canvasDraw.getContext('2d');
-  const imageData = ctxDraw.getImageData(0, 0, canvasDraw.width, canvasDraw.height).data;
-  let isBlank = true;
-  for (let i = 0; i < imageData.length; i++) {
-    if (imageData[i] !== 0) { isBlank = false; break; }
-  }
-  if (isBlank) {
-    alert("Merci de signer dans la zone prévue !");
-    return;
-  }
-  const dataURL = canvasDraw.toDataURL('image/png');
-  fetch('/fill-field', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_id: sessionId,
-      step: step,
-      field_index: index,
-      value: dataURL,
-      x_px: fields[index].x,
-      y_px: fields[index].y,
-      field_height: fields[index].h || 40,
-      html_width_px: canvas.width,
-      html_height_px: canvas.height
-    })
-  }).then(() => {
-    updateZone(index);
-    renderZones(); // Ajout pour cacher la zone signée
-  });
-}
-
-function updateZone(index) {
-  const zone = document.querySelector(`.zone[data-index='${index}']`);
-  if(zone) {
-    zone.textContent = '✅';
-    zone.style.border = '2px solid green';
-    zone.classList.add('locked');
-  }
-  completed[index] = true;
-  inputArea.innerHTML = '';
-  checkCompletion();
 }
 
 function checkCompletion() {
   const mustSign = fields.filter(f => f.signer_id == currentSignerId && f.type !== 'statictext');
-  const allDone = mustSign.every(f => completed[ fields.indexOf(f) ]);
-  if (allDone) submitBtn.style.display = 'inline-block';
+  const allDone = mustSign.every(f => f.signed);
+  submitBtn.style.display = allDone ? 'inline-block' : 'none';
 }
 
 submitBtn.onclick = () => {
@@ -381,8 +371,27 @@ submitBtn.onclick = () => {
     body: JSON.stringify({ session_id: sessionId, message_final: finalMessage })
   }).then(() => {
     alert("Signature finalisée. Vous pouvez fermer cette page.");
+    submitBtn.disabled = true;
   });
 };
+
+function renderPDF() {
+  pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
+    pdf.getPage(1).then(page => {
+      const viewport = page.getViewport({ scale: scale });
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      canvas.style.width = (viewport.width) + "px";
+      canvas.style.height = (viewport.height) + "px";
+      const ctx = canvas.getContext('2d');
+      page.render({ canvasContext: ctx, viewport }).promise.then(renderZones);
+    })
+  );
+}
+
+window.addEventListener('resize', renderZones);
+
+renderPDF();
 </script>
 </body>
 </html>
