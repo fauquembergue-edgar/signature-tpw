@@ -257,8 +257,8 @@ def sign(session_id, step):
         fields_json=fields,
         fields_all=session_data['fields'],
         signers=signers,
-        signer_id=currentSignerId
-        # message_final n'est plus passé ici
+        signer_id=currentSignerId,
+        previous_message=session_data.get("message_final", "")
     )
 
 @app.route('/fill-field', methods=['POST'])
