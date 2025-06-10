@@ -32,11 +32,12 @@ def get_pdf_page_size(pdf_path, page_num=0):
     height = float(mediabox.height)
     return width, height
 
-def html_to_pdf_coords(x_html, y_html, h_zone, html_w, html_h, pdf_w, pdf_h):
-    scale_x = pdf_w / html_w
-    scale_y = pdf_h / html_h
-    x_pdf = x_html * scale_x
-    y_pdf = (html_h - y_html - h_zone) * scale_y
+def html_to_pdf_coords(x_html_rel, y_html_rel, h_zone_rel, html_w, html_h, pdf_w, pdf_h):
+    # x_html_rel, y_html_rel, h_zone_rel: valeurs relatives (0..1)
+    scale_x = pdf_w
+    scale_y = pdf_h
+    x_pdf = x_html_rel * scale_x
+    y_pdf = (1 - y_html_rel - h_zone_rel) * scale_y
     return x_pdf, y_pdf
 
 def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
@@ -50,12 +51,12 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
     with open(output_path or pdf_path, 'wb') as f:
         writer.write(f)
 
-def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_height=40, page_num=0, offset_x=0, offset_y=2):
+def apply_text(pdf_path, x_rel, y_rel, text, html_width_px, html_height_px, field_height_rel=0.032, page_num=0, offset_x=0, offset_y=2):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     font_size = 14
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, field_height, html_width_px, html_height_px, pdf_width, pdf_height)
+    x_pdf, y_pdf = html_to_pdf_coords(x_rel, y_rel, field_height_rel, html_width_px, html_height_px, pdf_width, pdf_height)
     x_pdf += offset_x
-    y_pdf += offset_y + (field_height - font_size)
+    y_pdf += offset_y + (field_height_rel * pdf_height - font_size)
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     can.setFont("Helvetica", font_size)
@@ -65,10 +66,11 @@ def apply_text(pdf_path, x_px, y_px, text, html_width_px, html_height_px, field_
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, html_height_px, field_height=40, page_num=0, offset_x=0, offset_y=15):
+def apply_signature(pdf_path, sig_data, output_path, x_rel, y_rel, html_width_px, html_height_px, field_height_rel=0.032, page_num=0, offset_x=0, offset_y=15):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    width, height = 100, field_height
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, height, html_width_px, html_height_px, pdf_width, pdf_height)
+    width = 0.12  # 12% du PDF (largeur relative)
+    height = field_height_rel
+    x_pdf, y_pdf = html_to_pdf_coords(x_rel, y_rel, height, html_width_px, html_height_px, pdf_width, pdf_height)
     x_pdf += offset_x
     y_pdf += offset_y
     if sig_data.startswith("data:image/png;base64,"):
@@ -80,23 +82,25 @@ def apply_signature(pdf_path, sig_data, output_path, x_px, y_px, html_width_px, 
     img_io = io.BytesIO()
     image.save(img_io, format="PNG")
     img_io.seek(0)
-    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width, height=height, mask='auto')
+    # Largeur et hauteur en points
+    can.drawImage(ImageReader(img_io), x_pdf, y_pdf, width=width*pdf_width, height=height*pdf_height, mask='auto')
     can.save()
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
-def apply_checkbox(pdf_path, x_px, y_px, checked, html_width_px, html_height_px, field_height=15, page_num=0, size=10, offset_x=0, offset_y=0):
+def apply_checkbox(pdf_path, x_rel, y_rel, checked, html_width_px, html_height_px, field_height_rel=0.012, page_num=0, size_rel=0.012, offset_x=0, offset_y=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    x_pdf, y_pdf = html_to_pdf_coords(x_px, y_px, size, html_width_px, html_height_px, pdf_width, pdf_height)
+    size = size_rel
+    x_pdf, y_pdf = html_to_pdf_coords(x_rel, y_rel, size, html_width_px, html_height_px, pdf_width, pdf_height)
     x_pdf += offset_x
     y_pdf += offset_y
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    can.rect(x_pdf, y_pdf, size, size)
+    can.rect(x_pdf, y_pdf, size*pdf_width, size*pdf_height)
     if checked:
         can.setLineWidth(2)
-        can.line(x_pdf, y_pdf, x_pdf + size, y_pdf + size)
-        can.line(x_pdf, y_pdf + size, x_pdf + size, y_pdf)
+        can.line(x_pdf, y_pdf, x_pdf + size*pdf_width, y_pdf + size*pdf_height)
+        can.line(x_pdf, y_pdf + size*pdf_height, x_pdf + size*pdf_width, y_pdf)
     can.save()
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
@@ -110,13 +114,14 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, off
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_w, pdf_h))
     for field in static_fields:
-        x_field  = float(field.get("x", 0))
-        y_field  = float(field.get("y", 0))
-        h_field  = float(field.get("h", 0))
+        # Conversion relative
+        x_field  = float(field.get("x_rel", field.get("x", 0)))
+        y_field  = float(field.get("y_rel", field.get("y", 0)))
+        h_field  = float(field.get("h_rel", field.get("h", 0)))
         value    = field.get("value", "")
         font_size= float(field.get("font_size", 14))
-        x_pdf = x_field + offset_x
-        y_pdf = pdf_h - (y_field + h_field) + offset_y
+        x_pdf = x_field * pdf_w + offset_x
+        y_pdf = pdf_h - (y_field * pdf_h + h_field * pdf_h) + offset_y
         can.setFont("Helvetica", font_size)
         can.drawString(x_pdf, y_pdf, value)
     can.save()
@@ -199,17 +204,26 @@ def define_fields():
             sid = field["signer_id"]
             if sid in signataires:
                 field["email"] = signataires[sid]
+    # Ajoute les coordonnées relatives
     for i, field in enumerate(fields):
         field['signed'] = False
         field['step'] = i
         field['page'] = field.get('page', 0)
+        # S'assurer des dimensions relatives
+        field['x_rel'] = float(field['x']) / float(data.get('canvas_width', 931.5))
+        field['y_rel'] = float(field['y']) / float(data.get('canvas_height', 1250))
+        # Hauteur/largeur relative si h/w présents
+        if 'h' in field:
+            field['h_rel'] = float(field['h']) / float(data.get('canvas_height', 1250))
+        if 'w' in field:
+            field['w_rel'] = float(field['w']) / float(data.get('canvas_width', 931.5))
         if 'h' not in field:
             if field['type'] == 'signature':
-                field['h'] = 40
+                field['h_rel'] = 40 / float(data.get('canvas_height', 1250))
             elif field['type'] == 'checkbox':
-                field['h'] = 15
+                field['h_rel'] = 15 / float(data.get('canvas_height', 1250))
             else:
-                field['h'] = 40
+                field['h_rel'] = 40 / float(data.get('canvas_height', 1250))
     pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
     html_width_px = 931.5
     html_height_px = 1250
@@ -273,20 +287,21 @@ def fill_field():
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
     page_num = field.get('page', 0)
-    field_height = data.get('field_height', field.get('h', 40))
-    x_px = data['x_px']
-    y_px = data['y_px']
-    html_width_px = data['html_width_px']
-    html_height_px = data['html_height_px']
+    # On utilise les valeurs relatives stockées
+    x_rel = field['x_rel']
+    y_rel = field['y_rel']
+    field_height_rel = field.get('h_rel', 40 / 1250)
+    html_width_px = 1  # non utilisé mais requis par signature
+    html_height_px = 1
     if field['type'] == 'signature':
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_path, field['value'], new_pdf_path, x_px, y_px, html_width_px, html_height_px, field_height=field_height, page_num=page_num)
+        apply_signature(pdf_path, field['value'], new_pdf_path, x_rel, y_rel, html_width_px, html_height_px, field_height_rel=field_height_rel, page_num=page_num)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path, x_px, y_px, data['value'] in ['true','on','1', True], html_width_px, html_height_px, field_height=field_height, page_num=page_num)
+        apply_checkbox(pdf_path, x_rel, y_rel, data['value'] in ['true','on','1', True], html_width_px, html_height_px, field_height_rel=field_height_rel, page_num=page_num)
     else:
-        apply_text(pdf_path, x_px, y_px, data['value'], html_width_px, html_height_px, field_height=field_height, page_num=page_num)
+        apply_text(pdf_path, x_rel, y_rel, data['value'], html_width_px, html_height_px, field_height_rel=field_height_rel, page_num=page_num)
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
