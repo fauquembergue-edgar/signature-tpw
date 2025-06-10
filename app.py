@@ -218,7 +218,8 @@ def define_fields():
         'pdf': data['pdf'],
         'fields': fields,
         'email_message': message,
-        'nom_demande': nom_demande
+        'nom_demande': nom_demande,
+        'message_final': ''  # initialisation
     }
     session_file_path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(session_file_path, 'w') as f:
@@ -296,7 +297,7 @@ def finalise_signature():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
-    # Toujours enregistrer le message final si fourni
+    # Toujours enregistrer le message final du signataire courant si fourni
     if data.get('message_final') is not None:
         session_data['message_final'] = data['message_final']
     all_fields = session_data['fields']
@@ -310,7 +311,8 @@ def finalise_signature():
     if remaining:
         next_step = min(f['step'] for f in remaining)
         send_email(data['session_id'], next_step)
-        session_data['message_final'] = ""  # Efface le message pour le champ du suivant
+        # On garde le message en mémoire pour le mail du prochain signataire, puis on efface pour ne pas transmettre à l'autre étape suivante
+        session_data['message_final'] = ""
     else:
         send_pdf_to_all(session_data)
     with open(session_path, 'w') as f:
