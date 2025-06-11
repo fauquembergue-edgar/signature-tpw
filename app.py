@@ -45,7 +45,7 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
 
 # ----------- Placement ABSOLU pour tous les apply fonctions -----------
 
-def apply_text(pdf_path, x, y, text, page_num=0, offset_x=0, offset_y=0, font_size=14):
+def apply_text(pdf_path, x, y, text, page_num=0, offset_x=0, offset_y=3, font_size=14):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     # Inversion de l'axe Y
     y_pdf = pdf_height - y - font_size
@@ -58,7 +58,7 @@ def apply_text(pdf_path, x, y, text, page_num=0, offset_x=0, offset_y=0, font_si
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_signature(pdf_path, sig_data, output_path, x, y, w, h, page_num=0, offset_x=0, offset_y=0):
+def apply_signature(pdf_path, sig_data, output_path, x, y, w, h, page_num=0, offset_x=0, offset_y=5):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",", 1)[1]
@@ -76,7 +76,7 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, w, h, page_num=0, off
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
-def apply_checkbox(pdf_path, x, y, checked, size=14, page_num=0, offset_x=0, offset_y=0):
+def apply_checkbox(pdf_path, x, y, checked, size=10, page_num=0, offset_x=0, offset_y=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     # Inversion de l'axe Y pour la checkbox
     y_pdf = pdf_height - y - size
