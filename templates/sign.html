@@ -141,8 +141,11 @@ let scale = 1.5; // adapt later if responsive
 
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
+  // --- MODIFIE ICI : on n'affiche que les zones du signataire courant ---
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
+    if (f.signer_id != currentSignerId) return; // <-- Affiche seulement les zones du signataire courant
+
     const zone = document.createElement('div');
     zone.className = 'zone';
     if (f.signed) zone.classList.add('signed');
@@ -154,7 +157,7 @@ function renderZones() {
     zone.dataset.index = index;
     zone.dataset.signer_id = f.signer_id;
 
-    // Affichage valeur si déjà signée
+    // Affichage valeur si déjà signée (champ du signataire courant uniquement)
     if (f.signed) {
       if (f.type === 'text') {
         zone.textContent = f.value;
@@ -179,9 +182,6 @@ function renderZones() {
         e.stopPropagation();
         startEditZone(zone, f, index);
       });
-    } else {
-      zone.style.borderColor = "#cccccc";
-      zone.style.cursor = "not-allowed";
     }
     if (f.type === "text") zone.textContent = "Zone de texte";
     if (f.type === "signature") zone.textContent = "Signature";
