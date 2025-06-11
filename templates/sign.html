@@ -143,50 +143,85 @@ function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
-    const zone = document.createElement('div');
-    zone.className = 'zone';
-    if (f.signed) zone.classList.add('signed');
-    zone.style.left   = (f.x * scale) + "px";
-    zone.style.top    = (f.y * scale) + "px";
-    zone.style.width  = ((f.w || 100) * scale) + "px";
-    zone.style.height = ((f.h || 40) * scale) + "px";
-    zone.dataset.type  = f.type;
-    zone.dataset.index = index;
-    zone.dataset.signer_id = f.signer_id;
 
-    // Affichage valeur si déjà signée
-    if (f.signed) {
-      if (f.type === 'text') {
-        zone.textContent = f.value;
-      }
-      if (f.type === 'signature') {
-        let img = document.createElement('img');
-        img.src = f.value;
-        img.style.width = "100%"; img.style.height = "100%";
-        img.style.objectFit = "contain";
-        zone.appendChild(img);
-      }
-      if (f.type === 'checkbox') {
-        zone.textContent = f.value === true || f.value === "true" || f.value === "on" ? "☑" : "☐";
+    // Cas 1 : Champ du signataire courant et du step courant
+    if (f.signer_id == currentSignerId && f.step === step) {
+      const zone = document.createElement('div');
+      zone.className = 'zone';
+      if (f.signed) zone.classList.add('signed');
+      zone.style.left   = (f.x * scale) + "px";
+      zone.style.top    = (f.y * scale) + "px";
+      zone.style.width  = ((f.w || 100) * scale) + "px";
+      zone.style.height = ((f.h || 40) * scale) + "px";
+      zone.dataset.type  = f.type;
+      zone.dataset.index = index;
+      zone.dataset.signer_id = f.signer_id;
+
+      if (f.signed) {
+        // Affichage valeur si déjà signée
+        if (f.type === 'text') {
+          zone.textContent = f.value;
+        }
+        if (f.type === 'signature') {
+          let img = document.createElement('img');
+          img.src = f.value;
+          img.style.width = "100%";
+          img.style.height = "100%";
+          img.style.objectFit = "contain";
+          zone.appendChild(img);
+        }
+        if (f.type === 'checkbox') {
+          zone.textContent = f.value === true || f.value === "true" || f.value === "on" ? "☑" : "☐";
+        }
+        zone.style.cursor = "not-allowed";
+        zone.style.pointerEvents = "none";
+      } else {
+        // Zone éditable
+        zone.addEventListener('click', function(e) {
+          e.stopPropagation();
+          startEditZone(zone, f, index);
+        });
+        if (f.type === "text") zone.textContent = "Zone de texte";
+        if (f.type === "signature") zone.textContent = "Signature";
+        if (f.type === "checkbox") zone.textContent = "☐";
       }
       container.appendChild(zone);
       return;
     }
 
-    // Non signée, zone éditable
-    if (f.signer_id == currentSignerId) {
-      zone.addEventListener('click', function(e) {
-        e.stopPropagation();
-        startEditZone(zone, f, index);
-      });
-    } else {
-      zone.style.borderColor = "#cccccc";
-      zone.style.cursor = "not-allowed";
+    // Cas 2 : Champ signé par un signataire précédent
+    if (f.signed) {
+      // Pour les signataires suivants : on affiche seulement la valeur, sans overlay de zone
+      // -> donc on ajoute un élément SANS classe .zone ni .zone.signed, ni fond ni bordure
+      let el;
+      if (f.type === 'text') {
+        el = document.createElement('div');
+        el.textContent = f.value;
+      }
+      if (f.type === 'signature') {
+        el = document.createElement('img');
+        el.src = f.value;
+        el.style.width = ((f.w || 100) * scale) + "px";
+        el.style.height = ((f.h || 40) * scale) + "px";
+        el.style.objectFit = "contain";
+      }
+      if (f.type === 'checkbox') {
+        el = document.createElement('div');
+        el.textContent = f.value === true || f.value === "true" || f.value === "on" ? "☑" : "☐";
+      }
+      // Positionne à l'endroit du champ
+      el.style.position = "absolute";
+      el.style.left   = (f.x * scale) + "px";
+      el.style.top    = (f.y * scale) + "px";
+      el.style.width  = ((f.w || 100) * scale) + "px";
+      el.style.height = ((f.h || 40) * scale) + "px";
+      el.style.lineHeight = "normal";
+      el.style.background = "transparent";
+      el.style.border = "none";
+      el.style.pointerEvents = "none";
+      el.style.color = "#181c55";
+      container.appendChild(el);
     }
-    if (f.type === "text") zone.textContent = "Zone de texte";
-    if (f.type === "signature") zone.textContent = "Signature";
-    if (f.type === "checkbox") zone.textContent = "☐";
-    container.appendChild(zone);
   });
 }
 
