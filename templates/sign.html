@@ -332,7 +332,10 @@ function startEditZone(zone, field, index) {
     checkbox.type = "checkbox";
     checkbox.className = "checkbox-real";
     checkbox.checked = field.value === true || field.value === "true" || field.value === "on";
-    checkbox.onchange = function() {
+    // Ajoute un bouton "Valider" pour valider même si non coché
+    let validerBtn = document.createElement('button');
+    validerBtn.textContent = "Valider";
+    validerBtn.onclick = function() {
       fetch('/fill-field', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -340,7 +343,7 @@ function startEditZone(zone, field, index) {
           session_id: sessionId,
           step: step,
           field_index: index,
-          value: checkbox.checked,
+          value: checkbox.checked, // true ou false !
           x_px: field.x,
           y_px: field.y,
           field_height: field.h || 15,
@@ -355,6 +358,7 @@ function startEditZone(zone, field, index) {
       });
     };
     zone.appendChild(checkbox);
+    zone.appendChild(validerBtn);
   }
 }
 
