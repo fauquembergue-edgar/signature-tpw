@@ -144,8 +144,8 @@ function renderZones() {
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
 
-    // 1. Zones éditables : uniquement pour le signataire courant, non signées, et au bon step
-    if (!f.signed && f.signer_id == currentSignerId && f.step === step) {
+    // Afficher uniquement les zones du signataire courant à ce step
+    if (f.signer_id == currentSignerId && f.step === step) {
       const zone = document.createElement('div');
       zone.className = 'zone';
       zone.style.left   = (f.x * scale) + "px";
@@ -156,54 +156,38 @@ function renderZones() {
       zone.dataset.index = index;
       zone.dataset.signer_id = f.signer_id;
 
-      zone.addEventListener('click', function(e) {
-        e.stopPropagation();
-        startEditZone(zone, f, index);
-      });
-
-      if (f.type === "text") zone.textContent = "Zone de texte";
-      if (f.type === "signature") zone.textContent = "Signature";
-      if (f.type === "checkbox") zone.textContent = "☐";
-      container.appendChild(zone);
-      return;
-    }
-
-    // 2. Zones déjà signées : affichage du contenu sans overlay gênant ni fond
-    if (f.signed) {
-      const zone = document.createElement('div');
-      zone.className = 'zone signed';
-      zone.style.left   = (f.x * scale) + "px";
-      zone.style.top    = (f.y * scale) + "px";
-      zone.style.width  = ((f.w || 100) * scale) + "px";
-      zone.style.height = ((f.h || 40) * scale) + "px";
-      zone.dataset.type  = f.type;
-      zone.dataset.index = index;
-      zone.dataset.signer_id = f.signer_id;
-
-      // Affichage de la valeur, sans fond ni bordure
-      zone.style.background = "transparent";
-      zone.style.border = "none";
-      zone.style.pointerEvents = "none";
-      zone.style.color = "#181c55";
-
-      if (f.type === 'text') {
-        zone.textContent = f.value;
-      }
-      if (f.type === 'signature') {
-        let img = document.createElement('img');
-        img.src = f.value;
-        img.style.width = "100%"; img.style.height = "100%";
-        img.style.objectFit = "contain";
-        zone.appendChild(img);
-      }
-      if (f.type === 'checkbox') {
-        zone.textContent = f.value === true || f.value === "true" || f.value === "on" ? "☑" : "☐";
+      if (f.signed) {
+        zone.classList.add('signed');
+        // Affichage valeur si déjà signée
+        if (f.type === 'text') {
+          zone.textContent = f.value;
+        }
+        if (f.type === 'signature') {
+          let img = document.createElement('img');
+          img.src = f.value;
+          img.style.width = "100%";
+          img.style.height = "100%";
+          img.style.objectFit = "contain";
+          zone.appendChild(img);
+        }
+        if (f.type === 'checkbox') {
+          zone.textContent = f.value === true || f.value === "true" || f.value === "on" ? "☑" : "☐";
+        }
+        zone.style.cursor = "not-allowed";
+        zone.style.pointerEvents = "none";
+      } else {
+        // Zone éditable
+        zone.addEventListener('click', function(e) {
+          e.stopPropagation();
+          startEditZone(zone, f, index);
+        });
+        if (f.type === "text") zone.textContent = "Zone de texte";
+        if (f.type === "signature") zone.textContent = "Signature";
+        if (f.type === "checkbox") zone.textContent = "☐";
       }
       container.appendChild(zone);
-      return;
     }
-
-    // 3. Toutes les autres zones (pas à signer par ce signataire/step) : on n'affiche rien
+    // Pour les autres signataires ou steps : on n'affiche rien
   });
 }
 
