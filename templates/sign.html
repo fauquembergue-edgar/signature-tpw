@@ -141,21 +141,43 @@ let scale = 1.5; // adapt later if responsive
 
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
+  // Affiche uniquement les champs non signés du signataire courant et du step courant
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
-    const zone = document.createElement('div');
-    zone.className = 'zone';
-    if (f.signed) zone.classList.add('signed');
-    zone.style.left   = (f.x * scale) + "px";
-    zone.style.top    = (f.y * scale) + "px";
-    zone.style.width  = ((f.w || 100) * scale) + "px";
-    zone.style.height = ((f.h || 40) * scale) + "px";
-    zone.dataset.type  = f.type;
-    zone.dataset.index = index;
-    zone.dataset.signer_id = f.signer_id;
+    // N'affiche PAS les champs déjà signés pour l'édition ni même en transparent
+    if (!f.signed && f.signer_id == currentSignerId && f.step === step) {
+      const zone = document.createElement('div');
+      zone.className = 'zone';
+      zone.style.left   = (f.x * scale) + "px";
+      zone.style.top    = (f.y * scale) + "px";
+      zone.style.width  = ((f.w || 100) * scale) + "px";
+      zone.style.height = ((f.h || 40) * scale) + "px";
+      zone.dataset.type  = f.type;
+      zone.dataset.index = index;
+      zone.dataset.signer_id = f.signer_id;
 
-    // Affichage valeur si déjà signée
+      // Non signée, zone éditable
+      zone.addEventListener('click', function(e) {
+        e.stopPropagation();
+        startEditZone(zone, f, index);
+      });
+      if (f.type === "text") zone.textContent = "Zone de texte";
+      if (f.type === "signature") zone.textContent = "Signature";
+      if (f.type === "checkbox") zone.textContent = "☐";
+      container.appendChild(zone);
+    }
+    // Affiche les champs déjà signés en mode "fixe"
     if (f.signed) {
+      const zone = document.createElement('div');
+      zone.className = 'zone signed';
+      zone.style.left   = (f.x * scale) + "px";
+      zone.style.top    = (f.y * scale) + "px";
+      zone.style.width  = ((f.w || 100) * scale) + "px";
+      zone.style.height = ((f.h || 40) * scale) + "px";
+      zone.dataset.type  = f.type;
+      zone.dataset.index = index;
+      zone.dataset.signer_id = f.signer_id;
+
       if (f.type === 'text') {
         zone.textContent = f.value;
       }
@@ -170,23 +192,7 @@ function renderZones() {
         zone.textContent = f.value === true || f.value === "true" || f.value === "on" ? "☑" : "☐";
       }
       container.appendChild(zone);
-      return;
     }
-
-    // Non signée, zone éditable
-    if (f.signer_id == currentSignerId) {
-      zone.addEventListener('click', function(e) {
-        e.stopPropagation();
-        startEditZone(zone, f, index);
-      });
-    } else {
-      zone.style.borderColor = "#cccccc";
-      zone.style.cursor = "not-allowed";
-    }
-    if (f.type === "text") zone.textContent = "Zone de texte";
-    if (f.type === "signature") zone.textContent = "Signature";
-    if (f.type === "checkbox") zone.textContent = "☐";
-    container.appendChild(zone);
   });
 }
 
@@ -237,12 +243,17 @@ function startEditZone(zone, field, index) {
     function cancelInlineEdit() { renderZones(); }
   }
   else if (field.type === "signature") {
-    // Ajoute un <canvas> pour dessiner la signature
+    // Zone de signature agrandie pour la saisie (x2)
     let signCanvas = document.createElement('canvas');
-    signCanvas.width = zone.offsetWidth;
-    signCanvas.height = zone.offsetHeight-28;
+    let displayW = (field.w || 120) * 2;
+    let displayH = (field.h || 40) * 2;
+    signCanvas.width = displayW;
+    signCanvas.height = displayH;
+    signCanvas.style.width = "100%";
+    signCanvas.style.height = "100%";
     signCanvas.className = "inline-canvas";
     let ctx = signCanvas.getContext("2d");
+    ctx.lineWidth = 2;
     let drawing = false, last = null;
     signCanvas.addEventListener('mousedown', e => { drawing = true; last = getXY(e, signCanvas); });
     signCanvas.addEventListener('mousemove', e => {
@@ -282,7 +293,7 @@ function startEditZone(zone, field, index) {
     }
     zone.appendChild(signCanvas);
 
-    // Actions (Effacer / Valider)
+    // Actions (Effacer / Valider / Annuler)
     let actions = document.createElement('div');
     actions.className = "sig-actions";
     let clearBtn = document.createElement('button');
@@ -296,7 +307,13 @@ function startEditZone(zone, field, index) {
       let isBlank = true;
       for(let i=0;i<imgData.length;i++) if(imgData[i]!==0) { isBlank=false; break;}
       if (isBlank) { alert("Merci de signer dans la zone !"); return; }
-      let dataURL = signCanvas.toDataURL("image/png");
+      // Redimensionne à la taille PDF attendue
+      let targetW = field.w || 120;
+      let targetH = field.h || 40;
+      let tmp = document.createElement('canvas');
+      tmp.width = targetW; tmp.height = targetH;
+      tmp.getContext('2d').drawImage(signCanvas, 0, 0, targetW, targetH);
+      let dataURL = tmp.toDataURL("image/png");
       fetch('/fill-field', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -358,7 +375,8 @@ function startEditZone(zone, field, index) {
 }
 
 function checkCompletion() {
-  const mustSign = fields.filter(f => f.signer_id == currentSignerId && f.type !== 'statictext');
+  const mustSign = fields.filter(f => f.signer_id == currentSignerId && f.type !== 'statictext' && f.step === step);
+  // Pour valider, on n'oblige pas la coche de checkbox, il suffit que toutes les zones aient reçu une valeur (même false)
   const allDone = mustSign.every(f => f.signed);
   submitBtn.style.display = allDone ? 'inline-block' : 'none';
 }
