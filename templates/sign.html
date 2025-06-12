@@ -73,6 +73,34 @@
       vertical-align: middle;
       accent-color: #FF5733;
     }
+    /* Agrandit la checkbox lors de l'édition */
+    .checkbox-editing {
+      width: 38px !important;
+      height: 38px !important;
+      accent-color: #FF5733;
+      margin-right: 14px;
+      margin-left: 4px;
+    }
+    .checkbox-editing-btn {
+      font-size: 1.12em;
+      padding: 8px 18px;
+      border-radius: 6px;
+      border: none;
+      background: #338DFF;
+      color: #fff;
+      cursor: pointer;
+      margin-left: 6px;
+    }
+    @media (max-width: 600px) {
+      .checkbox-editing {
+        width: 46px !important;
+        height: 46px !important;
+      }
+      .checkbox-editing-btn {
+        font-size: 1.2em;
+        padding: 12px 20px;
+      }
+    }
     .previous-message {
       background: #eef;
       border-left: 4px solid #338DFF;
@@ -468,11 +496,12 @@ function startEditZone(zone, field, index) {
   else if (field.type === "checkbox") {
     let checkbox = document.createElement('input');
     checkbox.type = "checkbox";
-    checkbox.className = "checkbox-real";
+    checkbox.className = "checkbox-real checkbox-editing";
     checkbox.checked = field.value === true || field.value === "true" || field.value === "on";
     // Ajoute un bouton "Valider" pour valider même si non coché
     let validerBtn = document.createElement('button');
     validerBtn.textContent = "Valider";
+    validerBtn.className = "checkbox-editing-btn";
     validerBtn.onclick = function() {
       fetch('/fill-field', {
         method: 'POST',
@@ -495,8 +524,14 @@ function startEditZone(zone, field, index) {
         checkCompletion();
       });
     };
-    zone.appendChild(checkbox);
-    zone.appendChild(validerBtn);
+    // Centrer horizontalement sur mobile
+    let wrap = document.createElement('div');
+    wrap.style.display = 'flex';
+    wrap.style.alignItems = 'center';
+    wrap.style.justifyContent = 'center';
+    wrap.appendChild(checkbox);
+    wrap.appendChild(validerBtn);
+    zone.appendChild(wrap);
   }
 }
 
