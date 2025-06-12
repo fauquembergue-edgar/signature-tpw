@@ -12,8 +12,8 @@
     canvas { width: 100vw; max-width: 700px; height: auto; display: block; }
     .zone {
       position: absolute;
-      border: 2px dashed #FF5733;
-      background: rgba(255,255,255,0.9);
+      border: 2px dashed #33C964;
+      background: rgba(50,255,50,0.12);
       font-size: 14px;
       z-index: 10;
       cursor: pointer;
@@ -127,12 +127,11 @@
   </div>
   <button id="submit-btn">Valider toutes mes zones et envoyer</button>
 <script>
-// --- Données dynamiques à remplacer par ton backend/flask ---
+// Exemple : ajoute offset_x/offset_y pour chaque field si besoin, ici à 0 par défaut
 const fields = {{ fields_all | tojson }};
 const currentSignerId = {{ signer_id }};
 const sessionId = "{{ session_id }}";
 const step = {{ step }};
-// ------------------------------------------------------------
 
 const canvas = document.getElementById('pdf-canvas');
 const container = document.getElementById('pdf-container');
@@ -153,7 +152,6 @@ pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
 
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
-  // Facteur d'échelle entre la largeur réelle du canvas et la largeur affichée
   const rect = canvas.getBoundingClientRect();
   const scaleX = rect.width / canvas.width;
   const scaleY = rect.height / canvas.height;
@@ -162,8 +160,9 @@ function renderZones() {
     if (f.signer_id != currentSignerId) return;
     const zone = document.createElement('div');
     zone.className = 'zone' + (f.signed ? ' signed' : '');
-    zone.style.left = (f.x * scaleX) + "px";
-    zone.style.top = (f.y * scaleY) + "px";
+    // Offset personnalisable par field
+    zone.style.left = ((f.x + (f.offset_x || 0)) * scaleX) + "px";
+    zone.style.top  = ((f.y + (f.offset_y || 0)) * scaleY) + "px";
     zone.style.width = ((f.w || 100) * scaleX) + "px";
     zone.style.height = ((f.h || 40) * scaleY) + "px";
     zone.dataset.type  = f.type;
