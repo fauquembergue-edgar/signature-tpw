@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <title>Signature du document - TPW Nord Concassage</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
-  <!-- Désactive le zoom navigateur -->
+  <!-- Désactive le zoom navigateur pour éviter tout conflit -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    html, body { height: 100%; margin: 0; padding: 0; }
     body { font-family: 'Roboto', Arial, sans-serif; background: #f4f4f4; padding: 20px; }
     .zoom-controls {
       margin-bottom: 8px;
@@ -36,16 +36,29 @@
       font-weight: 500;
       min-width: 60px;
     }
+    .pdf-zoom-scroll {
+      width: 100vw;
+      max-width: 100vw;
+      overflow: auto;
+      /* Pour éviter de scroller tout le body sur zoom */
+      background: #eaeaea;
+      padding-bottom: 24px;
+    }
     .pdf-zoom-wrapper {
       position: relative;
       display: inline-block;
-      /* transform & origin modifiés dynamiquement en JS */
+      /* transform: scale(x) appliqué dynamiquement */
+      transform-origin: top left;
+      will-change: transform;
+      transition: transform 0.10s;
     }
     .pdf-wrapper {
       position: relative;
       display: block;
       width: 100%;
       max-width: 700px;
+      margin: 0 auto;
+      background: #fff;
     }
     canvas { border: 1px solid #ccc; background: #fff; width: 100% !important; height: auto !important; display: block; }
     .zone {
@@ -143,8 +156,10 @@
     }
     @media (max-width: 740px) {
       .pdf-wrapper { width: 98vw !important; height: auto !important; max-width: 100vw; }
+      .pdf-zoom-scroll { width: 100vw !important; max-width: 100vw !important; }
     }
   </style>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
   <h2>Signature du document</h2>
@@ -153,9 +168,11 @@
     <span class="zoom-label" id="zoom-label">100%</span>
     <button class="zoom-btn" id="zoom-in">+</button>
   </div>
-  <div class="pdf-zoom-wrapper" id="pdf-zoom-wrapper">
-    <div class="pdf-wrapper" id="pdf-container">
-      <canvas id="pdf-canvas"></canvas>
+  <div class="pdf-zoom-scroll">
+    <div class="pdf-zoom-wrapper" id="pdf-zoom-wrapper">
+      <div class="pdf-wrapper" id="pdf-container">
+        <canvas id="pdf-canvas"></canvas>
+      </div>
     </div>
   </div>
 
@@ -186,22 +203,24 @@ const zoomLabel = document.getElementById('zoom-label');
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 
-let baseScale = 1.5; // sera calculé dynamiquement pour remplir l'écran
-let zoom = 1.0; // zoom interne (boutons +/-)
+let baseScale = 1.5;
+let zoom = 1.0;
 const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 2.5;
+const ZOOM_MAX = 3.0;
 const ZOOM_STEP = 0.15;
 
-function computeBaseScale(page) {
-  const maxWidth = Math.min(window.innerWidth * 0.98, 700);
-  const viewport = page.getViewport({ scale: 1 });
-  return maxWidth / viewport.width;
-}
-
+// Fixe la transform du wrapper sans reload PDF
 function updateZoomTransform() {
   zoomWrapper.style.transform = `scale(${zoom})`;
   zoomWrapper.style.transformOrigin = "top left";
   zoomLabel.innerText = Math.round(zoom * 100) + "%";
+  // scroll auto pour centrer le PDF après zoom
+  const scroll = document.querySelector('.pdf-zoom-scroll');
+  if (scroll) {
+    // On garde le PDF visible dans la fenêtre
+    scroll.scrollLeft = 0;
+    scroll.scrollTop = 0;
+  }
 }
 
 zoomInBtn.onclick = function() {
@@ -213,27 +232,27 @@ zoomOutBtn.onclick = function() {
   updateZoomTransform();
 };
 
+function computeBaseScale(page) {
+  const maxWidth = Math.min(window.innerWidth * 0.98, 700);
+  const viewport = page.getViewport({ scale: 1 });
+  return maxWidth / viewport.width;
+}
+
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
-
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
     if (f.signer_id != currentSignerId) return;
-
     const zone = document.createElement('div');
     zone.className = 'zone';
     if (f.signed) zone.classList.add('signed');
-
-    // Positionnement absolu en pixels (fixé par rapport au PDF dans le conteneur zoomé)
     zone.style.left   = (f.x * baseScale) + "px";
     zone.style.top    = (f.y * baseScale) + "px";
     zone.style.width  = ((f.w || 100) * baseScale) + "px";
     zone.style.height = ((f.h || 40) * baseScale) + "px";
-
     zone.dataset.type  = f.type;
     zone.dataset.index = index;
     zone.dataset.signer_id = f.signer_id;
-
     if (f.signed) {
       if (f.type === 'text') {
         zone.textContent = f.value;
@@ -251,7 +270,6 @@ function renderZones() {
       container.appendChild(zone);
       return;
     }
-
     if (f.signer_id == currentSignerId) {
       zone.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -469,6 +487,13 @@ function renderPDF() {
 
 // On recalcule tout à chaque resize pour garder la baseScale correcte
 window.addEventListener('resize', renderPDF);
+
+// Empêche double tap zoom sur mobile pour éviter conflit
+document.addEventListener('touchstart', function preventZoom(e) {
+  if (e.touches.length > 1) {
+    e.preventDefault();
+  }
+}, { passive: false });
 
 renderPDF();
 </script>
