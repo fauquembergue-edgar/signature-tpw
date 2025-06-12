@@ -158,21 +158,19 @@ window.addEventListener('resize', renderZones);
 
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
-  // Récupère le canvas en coordonnées pixels réelles (pas de produit en croix !)
   const rect = canvas.getBoundingClientRect();
+  // Correction : échelle X et Y indépendante pour chaque axe
+  const scaleX = rect.width / 700; // 700 = largeur PDF d'origine
+  const scaleY = rect.height / canvas.height; // canvas.height est le rapport PDF natif
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
     if (f.signer_id != currentSignerId) return;
     const zone = document.createElement('div');
     zone.className = 'zone' + (f.signed ? ' signed' : '');
-    // Pas de produit en croix ! On positionne directement en pixels
-    // f.x, f.y, f.w, f.h sont exprimés pour un canvas.width de 700px
-    // On met à l'échelle simplement selon le ratio largeur/hauteur du canvas affiché
-    const scale = rect.width / 700; // 700 = largeur PDF d'origine (canvas.width)
-    zone.style.left = (f.x * scale) + "px";
-    zone.style.top = (f.y * scale) + "px";
-    zone.style.width = ((f.w || 100) * scale) + "px";
-    zone.style.height = ((f.h || 40) * scale) + "px";
+    zone.style.left = (f.x * scaleX) + "px";
+    zone.style.top  = (f.y * scaleY) + "px";
+    zone.style.width = ((f.w || 100) * scaleX) + "px";
+    zone.style.height = ((f.h || 40) * scaleY) + "px";
     zone.style.position = "absolute";
     zone.dataset.type  = f.type;
     zone.dataset.index = index;
