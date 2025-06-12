@@ -4,12 +4,49 @@
   <meta charset="UTF-8">
   <title>Signature du document - TPW Nord Concassage</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
-  <!-- Désactive le zoom utilisateur pour garantir la "fixation" des zones au PDF -->
+  <!-- Désactive le zoom navigateur -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Roboto', Arial, sans-serif; background: #f4f4f4; padding: 20px; }
-    .pdf-wrapper { position: relative; display: inline-block; width: 100%; max-width: 700px; }
+    .zoom-controls {
+      margin-bottom: 8px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .zoom-btn {
+      font-size: 1.3em;
+      background: #338DFF;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      padding: 4px 14px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      transition: background .15s;
+    }
+    .zoom-btn:active, .zoom-btn:hover {
+      background: #0f3152;
+    }
+    .zoom-label {
+      font-size: 1em;
+      color: #144372;
+      font-weight: 500;
+      min-width: 60px;
+    }
+    .pdf-zoom-wrapper {
+      position: relative;
+      display: inline-block;
+      /* transform & origin modifiés dynamiquement en JS */
+    }
+    .pdf-wrapper {
+      position: relative;
+      display: block;
+      width: 100%;
+      max-width: 700px;
+    }
     canvas { border: 1px solid #ccc; background: #fff; width: 100% !important; height: auto !important; display: block; }
     .zone {
       position: absolute;
@@ -105,14 +142,21 @@
       background: #0f3152;
     }
     @media (max-width: 740px) {
-      #pdf-canvas, .pdf-wrapper { width: 98vw !important; height: auto !important; max-width: 100vw; }
+      .pdf-wrapper { width: 98vw !important; height: auto !important; max-width: 100vw; }
     }
   </style>
 </head>
 <body>
   <h2>Signature du document</h2>
-  <div class="pdf-wrapper" id="pdf-container">
-    <canvas id="pdf-canvas"></canvas>
+  <div class="zoom-controls">
+    <button class="zoom-btn" id="zoom-out">-</button>
+    <span class="zoom-label" id="zoom-label">100%</span>
+    <button class="zoom-btn" id="zoom-in">+</button>
+  </div>
+  <div class="pdf-zoom-wrapper" id="pdf-zoom-wrapper">
+    <div class="pdf-wrapper" id="pdf-container">
+      <canvas id="pdf-canvas"></canvas>
+    </div>
   </div>
 
   {% if previous_message %}
@@ -137,14 +181,37 @@ let completed = fields.map(f => f.signed);
 const canvas = document.getElementById('pdf-canvas');
 const container = document.getElementById('pdf-container');
 const submitBtn = document.getElementById('submit-btn');
+const zoomWrapper = document.getElementById('pdf-zoom-wrapper');
+const zoomLabel = document.getElementById('zoom-label');
+const zoomInBtn = document.getElementById('zoom-in');
+const zoomOutBtn = document.getElementById('zoom-out');
 
-let scale = 1.5; // sera recalculé dynamiquement
+let baseScale = 1.5; // sera calculé dynamiquement pour remplir l'écran
+let zoom = 1.0; // zoom interne (boutons +/-)
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2.5;
+const ZOOM_STEP = 0.15;
 
-function computeScale(page) {
+function computeBaseScale(page) {
   const maxWidth = Math.min(window.innerWidth * 0.98, 700);
   const viewport = page.getViewport({ scale: 1 });
   return maxWidth / viewport.width;
 }
+
+function updateZoomTransform() {
+  zoomWrapper.style.transform = `scale(${zoom})`;
+  zoomWrapper.style.transformOrigin = "top left";
+  zoomLabel.innerText = Math.round(zoom * 100) + "%";
+}
+
+zoomInBtn.onclick = function() {
+  zoom = Math.min(zoom + ZOOM_STEP, ZOOM_MAX);
+  updateZoomTransform();
+};
+zoomOutBtn.onclick = function() {
+  zoom = Math.max(zoom - ZOOM_STEP, ZOOM_MIN);
+  updateZoomTransform();
+};
 
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
@@ -157,11 +224,11 @@ function renderZones() {
     zone.className = 'zone';
     if (f.signed) zone.classList.add('signed');
 
-    // Positionnement absolu en pixels (fixé par rapport au PDF)
-    zone.style.left   = (f.x * scale) + "px";
-    zone.style.top    = (f.y * scale) + "px";
-    zone.style.width  = ((f.w || 100) * scale) + "px";
-    zone.style.height = ((f.h || 40) * scale) + "px";
+    // Positionnement absolu en pixels (fixé par rapport au PDF dans le conteneur zoomé)
+    zone.style.left   = (f.x * baseScale) + "px";
+    zone.style.top    = (f.y * baseScale) + "px";
+    zone.style.width  = ((f.w || 100) * baseScale) + "px";
+    zone.style.height = ((f.h || 40) * baseScale) + "px";
 
     zone.dataset.type  = f.type;
     zone.dataset.index = index;
@@ -383,8 +450,8 @@ submitBtn.onclick = () => {
 function renderPDF() {
   pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
     pdf.getPage(1).then(page => {
-      scale = computeScale(page);
-      const viewport = page.getViewport({ scale: scale });
+      baseScale = computeBaseScale(page);
+      const viewport = page.getViewport({ scale: baseScale });
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       canvas.style.width = "100%";
@@ -392,11 +459,15 @@ function renderPDF() {
       container.style.width = canvas.width + "px";
       container.style.height = canvas.height + "px";
       const ctx = canvas.getContext('2d');
-      page.render({ canvasContext: ctx, viewport }).promise.then(renderZones);
+      page.render({ canvasContext: ctx, viewport }).promise.then(() => {
+        renderZones();
+        updateZoomTransform();
+      });
     })
   );
 }
 
+// On recalcule tout à chaque resize pour garder la baseScale correcte
 window.addEventListener('resize', renderPDF);
 
 renderPDF();
