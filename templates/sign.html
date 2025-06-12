@@ -137,14 +137,21 @@ const canvas = document.getElementById('pdf-canvas');
 const container = document.getElementById('pdf-container');
 const submitBtn = document.getElementById('submit-btn');
 
-let scale = 1.5; // adapt later if responsive
+let scale = 1.5; // Sera recalculé dynamiquement
+
+function computeScale(page) {
+  // largeur max du PDF à l’écran, par exemple 98vw ou 700px max
+  const maxWidth = Math.min(window.innerWidth * 0.98, 700); // adapte la valeur max si besoin
+  const viewport = page.getViewport({ scale: 1 });
+  return maxWidth / viewport.width;
+}
 
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
-  // --- MODIFIE ICI : on n'affiche que les zones du signataire courant ---
+  // On n'affiche que les zones du signataire courant (signées ou non)
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
-    if (f.signer_id != currentSignerId) return; // <-- Affiche seulement les zones du signataire courant
+    if (f.signer_id != currentSignerId) return;
 
     const zone = document.createElement('div');
     zone.className = 'zone';
@@ -382,6 +389,8 @@ submitBtn.onclick = () => {
 function renderPDF() {
   pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
     pdf.getPage(1).then(page => {
+      // Calcule un scale dynamique selon la largeur écran/conteneur
+      scale = computeScale(page);
       const viewport = page.getViewport({ scale: scale });
       canvas.height = viewport.height;
       canvas.width = viewport.width;
@@ -393,7 +402,8 @@ function renderPDF() {
   );
 }
 
-window.addEventListener('resize', renderZones);
+// Ré-adapte le PDF et les zones lors du redimensionnement de la fenêtre
+window.addEventListener('resize', renderPDF);
 
 renderPDF();
 </script>
