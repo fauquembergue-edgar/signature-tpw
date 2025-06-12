@@ -159,10 +159,16 @@ def save_template():
     name = data.get('name')
     if not name:
         return jsonify({'error': 'Nom de template requis'}), 400
+    # Nettoyage des champs pour template : pas d'email, pas de value, pas de signed
+    cleaned_fields = []
+    for field in data['fields']:
+        # On copie le champ pour ne pas modifier l'original
+        field_clean = {k: v for k, v in field.items() if k not in ['email', 'value', 'signed']}
+        cleaned_fields.append(field_clean)
     path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
     with open(path, 'w') as f:
-        json.dump({'pdf': data['pdf'], 'fields': data['fields']}, f)
-    return jsonify({'status': 'saved', 'pdf': data['pdf'], 'fields': data['fields']})
+        json.dump({'pdf': data['pdf'], 'fields': cleaned_fields}, f)
+    return jsonify({'status': 'saved', 'pdf': data['pdf'], 'fields': cleaned_fields})
 
 @app.route('/load-template/<name>')
 def load_template(name):
@@ -181,16 +187,9 @@ def define_fields():
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
     fields = data['fields']
-    signataires = {}
-    for f in fields:
-        if f.get("type") != "statictext" and "signer_id" in f and "email" in f:
-            signataires[f["signer_id"]] = f["email"]
-    for field in fields:
-        if field.get("type") != "statictext" and "signer_id" in field and "email" not in field:
-            sid = field["signer_id"]
-            if sid in signataires:
-                field["email"] = signataires[sid]
-    # Supposé: les champs sont déjà en px PDF natifs (x, y, w, h), pas de conversion ici
+    # On attend de recevoir les nouveaux emails à chaque création de session
+    # Pas de propagation d'emails depuis un éventuel template,
+    # l'UI doit demander explicitement les emails pour chaque signer_id (via front)
     for i, field in enumerate(fields):
         field['signed'] = False
         field['step'] = i
@@ -211,7 +210,8 @@ def define_fields():
             else:
                 field['w'] = 120
     pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
-    apply_static_text_fields(pdf_path, fields, output_path=None)
+    # *** On NE fusionne PAS les statictext dans le PDF lors de la création de session depuis template ***
+    # On ne doit appeler apply_static_text_fields que lors de la finalisation du document, pas à cette étape
     session_data = {
         'pdf': data['pdf'],
         'fields': fields,
@@ -285,6 +285,10 @@ def fill_field():
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
         apply_checkbox(pdf_path, x, y, data['value'] in ['true','on','1', True], size=max(w, h), page_num=page_num, offset_x=offset_x, offset_y=offset_y)
+    elif field['type'] == 'statictext':
+        # On n'applique le statictext que lors de la finalisation du PDF,
+        # donc ici rien à faire (ou éventuellement enregistrer la nouvelle value)
+        field['value'] = data['value']
     else:
         apply_text(pdf_path, x, y, data['value'], page_num=page_num, offset_x=offset_x, offset_y=offset_y)
     with open(session_path, 'w') as f:
@@ -312,6 +316,9 @@ def finalise_signature():
         send_email(data['session_id'], next_step, message_final=session_data.get('message_final'))
         session_data['message_final'] = ""
     else:
+        # À la toute fin, on applique les statictext sur le PDF final
+        pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+        apply_static_text_fields(pdf_path, all_fields, output_path=pdf_path)
         send_pdf_to_all(session_data)
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
