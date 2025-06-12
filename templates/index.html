@@ -247,6 +247,50 @@
     tr:nth-child(even) {
       background: #e9eef4;
     }
+    /* Ajout pour la modale emails */
+    .modal-emails-bg {
+      position: fixed;
+      z-index: 10000;
+      left: 0; top: 0; width: 100vw; height: 100vh;
+      background: rgba(40,40,55,0.25);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-emails-content {
+      background: #fff;
+      border-radius: 12px;
+      padding: 32px 28px 26px 28px;
+      box-shadow: 0 6px 48px #0004;
+      text-align: center;
+      min-width: 220px;
+      max-width: 95vw;
+    }
+    .modal-emails-content h4 {
+      margin-top: 0;
+      font-family: 'Montserrat', Arial, sans-serif;
+      color: #27348b;
+      margin-bottom: 18px;
+    }
+    .modal-emails-content label {
+      display: block;
+      margin-bottom: 13px;
+      font-size: 1.02em;
+      color: #181c55;
+      text-align: left;
+    }
+    .modal-emails-content input[type=email] {
+      width: 95%;
+      margin-top: 4px;
+      margin-bottom: 8px;
+      font-size: 1.08em;
+      padding: 7px 12px;
+      border-radius: 6px;
+      border: 1.5px solid #c7c7da;
+      background: #f8fafb;
+    }
+    .modal-emails-content .btn {
+      margin-top: 12px;
+      font-size: 1.11em;
+    }
     @media (max-width: 1100px) {
       main { flex-direction: column; gap: 0; padding: 24px 0; }
       #left, #right { max-width: 100vw; border-radius: 0; box-shadow: none; }
@@ -347,6 +391,13 @@
     </table>
   </div>
 </main>
+
+<!-- Modale emails (invisible par défaut) -->
+<div id="modal-emails-bg" class="modal-emails-bg" style="display:none;">
+  <div class="modal-emails-content" id="modal-emails-content">
+    <!-- contenu dynamique JS -->
+  </div>
+</div>
 
 <script>
 let fields = [];
@@ -486,6 +537,12 @@ document.getElementById('assign-fields-form').onsubmit = function () {
     alert("Aucun PDF sélectionné !");
     return false;
   }
+  // Vérification : chaque champ à signer a un email (pour éviter bug !)
+  const missing = fields.filter(f => f.type !== "statictext" && (!f.email || f.email.trim() === ""));
+  if (missing.length > 0) {
+    alert("Veuillez renseigner l'email pour chaque signataire avant de lancer le processus.");
+    return false;
+  }
   document.getElementById('fields-json').value = JSON.stringify({ pdf: currentPdf, fields: fields });
   document.getElementById('email-message-hidden').value = document.getElementById('email-message').value;
   document.getElementById('nom-demande-hidden').value = document.getElementById('nom-demande').value;
@@ -500,7 +557,7 @@ function saveTemplate() {
     if (f.type === "statictext") {
       return { type: f.type, x: f.x, y: f.y, value: f.value };
     } else {
-      return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id, email: f.email };
+      return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id };
     }
   });
 
@@ -547,6 +604,41 @@ function saveTemplate() {
   });
 }
 
+function askForSignatairesEmails() {
+  // Cherche tous les signer_id différents
+  const signerIds = [...new Set(fields.filter(f => f.type !== "statictext").map(f => f.signer_id))];
+  if (signerIds.length === 0) return;
+  // Affiche une modale pour chaque signer_id
+  const modalBg = document.getElementById('modal-emails-bg');
+  const modalContent = document.getElementById('modal-emails-content');
+  let html = `<h4>Renseignez les emails des signataires&nbsp;:</h4>`;
+  signerIds.forEach((id, i) => {
+    html += `<label>Signataire ${parseInt(i)+1} (étape ${id+1}) : <input type="email" id="email-sign-${id}" required></label>`;
+  });
+  html += `<button class="btn btn-accent" id="validate-emails">Valider</button>`;
+  modalContent.innerHTML = html;
+  modalBg.style.display = "flex";
+
+  document.getElementById('validate-emails').onclick = function() {
+    let ok = true;
+    let mapping = {};
+    signerIds.forEach(id => {
+      const val = document.getElementById('email-sign-'+id).value.trim();
+      if (!val) ok = false;
+      mapping[id] = val;
+    });
+    if (!ok) return alert("Veuillez renseigner tous les emails.");
+    // Mets à jour tous les fields avec le bon email
+    fields.forEach(f => {
+      if (f.type !== "statictext" && mapping[f.signer_id] !== undefined) {
+        f.email = mapping[f.signer_id];
+      }
+    });
+    modalBg.style.display = "none";
+    alert("Emails enregistrés pour chaque signataire.");
+  }
+}
+
 function loadTemplate() {
   const name = document.getElementById('template-select').value;
   fetch('/load-template/' + name)
@@ -588,6 +680,8 @@ function loadTemplate() {
           container.appendChild(div);
           enableDrag(div, id);
         });
+        // Après chargement du template, demander les emails des signataires
+        askForSignatairesEmails();
       }, 500);
     });
 }
