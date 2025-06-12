@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <title>Signature du document - TPW Nord Concassage</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Désactive le zoom utilisateur pour garantir la "fixation" des zones au PDF -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Roboto', Arial, sans-serif; background: #f4f4f4; padding: 20px; }
@@ -137,7 +138,7 @@ const canvas = document.getElementById('pdf-canvas');
 const container = document.getElementById('pdf-container');
 const submitBtn = document.getElementById('submit-btn');
 
-let scale = 1.5; // Sera recalculé dynamiquement
+let scale = 1.5; // sera recalculé dynamiquement
 
 function computeScale(page) {
   const maxWidth = Math.min(window.innerWidth * 0.98, 700);
@@ -148,11 +149,6 @@ function computeScale(page) {
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
 
-  // Taille CSS du canvas affiché
-  const canvasRect = canvas.getBoundingClientRect();
-  const canvasWidth = canvasRect.width;
-  const canvasHeight = canvasRect.height;
-
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
     if (f.signer_id != currentSignerId) return;
@@ -161,22 +157,16 @@ function renderZones() {
     zone.className = 'zone';
     if (f.signed) zone.classList.add('signed');
 
-    // Positionnement en pourcentage pour coller au zoom CSS du canvas (anti-décalage)
-    const leftPct = (f.x / canvas.width) * 100;
-    const topPct = (f.y / canvas.height) * 100;
-    const widthPct = ((f.w || 100) / canvas.width) * 100;
-    const heightPct = ((f.h || 40) / canvas.height) * 100;
-
-    zone.style.left = leftPct + "%";
-    zone.style.top = topPct + "%";
-    zone.style.width = widthPct + "%";
-    zone.style.height = heightPct + "%";
+    // Positionnement absolu en pixels (fixé par rapport au PDF)
+    zone.style.left   = (f.x * scale) + "px";
+    zone.style.top    = (f.y * scale) + "px";
+    zone.style.width  = ((f.w || 100) * scale) + "px";
+    zone.style.height = ((f.h || 40) * scale) + "px";
 
     zone.dataset.type  = f.type;
     zone.dataset.index = index;
     zone.dataset.signer_id = f.signer_id;
 
-    // Affichage valeur si déjà signée (champ du signataire courant uniquement)
     if (f.signed) {
       if (f.type === 'text') {
         zone.textContent = f.value;
