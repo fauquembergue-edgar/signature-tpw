@@ -127,23 +127,21 @@
   </div>
   <button id="submit-btn">Valider toutes mes zones et envoyer</button>
 <script>
-// --- Données dynamiques à remplacer par ton backend/flask ---
+// Les données suivantes doivent être injectées côté serveur (Flask/Jinja2)
 const fields = {{ fields_all | tojson }};
 const currentSignerId = {{ signer_id }};
 const sessionId = "{{ session_id }}";
 const step = {{ step }};
-// ------------------------------------------------------------
 
 const canvas = document.getElementById('pdf-canvas');
 const container = document.getElementById('pdf-container');
 const submitBtn = document.getElementById('submit-btn');
 
-// Rendu PDF (page 1 uniquement, adapte "/uploads/{{ pdf }}" à ton backend)
+// Affiche le PDF et les zones (page 1)
 function renderPDFAndZones() {
   pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
     pdf.getPage(1).then(page => {
       const viewport = page.getViewport({ scale: 1 });
-      // Fixe la hauteur du canvas selon le ratio réel du PDF (le width=700px est la référence coordonnée)
       canvas.height = viewport.height * (canvas.width / viewport.width);
       canvas.style.height = "auto";
       canvas.style.width = "100%";
@@ -154,29 +152,27 @@ function renderPDFAndZones() {
   );
 }
 
-// Appelle renderZones à chaque resize pour recaler les zones si la taille change
+// Recalcule les zones à chaque resize
 window.addEventListener('resize', renderZones);
 
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
-  // Pour être certain d'avoir la même origine que le canvas, on prend sa bounding box
-  const rect = canvas.getBoundingClientRect();
+  // Pour chaque champ à placer
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
     if (f.signer_id != currentSignerId) return;
     const zone = document.createElement('div');
     zone.className = 'zone' + (f.signed ? ' signed' : '');
-    // Correction Y pour conversion PDF → HTML (origine PDF en bas, HTML en haut)
-    const zoneH = (f.h || 40);
-    const topPx = canvas.height - f.y - zoneH;
+    // Correction : inversion de l’axe Y (origine PDF en bas à gauche, HTML en haut à gauche)
+    const zoneHeight = f.h || 40;
+    const topPx = canvas.height - f.y - zoneHeight;
     const leftPct = (f.x / canvas.width) * 100;
     const topPct = (topPx / canvas.height) * 100;
     const widthPct = ((f.w || 100) / canvas.width) * 100;
-    const heightPct = (zoneH / canvas.height) * 100;
-
-    zone.style.left = leftPct + "%";
-    zone.style.top = topPct + "%";
-    zone.style.width = widthPct + "%";
+    const heightPct = (zoneHeight / canvas.height) * 100;
+    zone.style.left   = leftPct   + "%";
+    zone.style.top    = topPct    + "%";
+    zone.style.width  = widthPct  + "%";
     zone.style.height = heightPct + "%";
     zone.style.position = "absolute";
     zone.style.minWidth = "15px";
