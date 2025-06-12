@@ -166,9 +166,9 @@ function renderZones() {
     if (f.signer_id != currentSignerId) return;
     const zone = document.createElement('div');
     zone.className = 'zone' + (f.signed ? ' signed' : '');
-    // Inversion Y :
+    // *** Inversion Y pour placer en haut ***
     const zoneHeight = f.h || 40;
-    const yInverted = canvas.height - f.y - zoneHeight;
+    const yInverted = f.y; // <-- AU LIEU DE : canvas.height - f.y - zoneHeight
     zone.style.left = (f.x * scaleX) + "px";
     zone.style.top  = (yInverted * scaleY) + "px";
     zone.style.width = ((f.w || 100) * scaleX) + "px";
