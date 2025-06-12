@@ -143,10 +143,9 @@ function renderPDFAndZones() {
   pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
     pdf.getPage(1).then(page => {
       const viewport = page.getViewport({ scale: 1 });
-      // On force le canvas à la même largeur que les coordonnées PDF utilisées (ex : 700 px)
       canvas.height = viewport.height * (canvas.width / viewport.width);
-      canvas.style.height = canvas.height + "px"; // pour éviter les bizarreries de resize
-      canvas.style.width = canvas.width + "px";
+      canvas.style.height = "auto";
+      canvas.style.width = "100%";
       canvas.style.maxWidth = "700px";
       const ctx = canvas.getContext('2d');
       page.render({ canvasContext: ctx, viewport: page.getViewport({ scale: canvas.width/viewport.width }) }).promise.then(renderZones);
@@ -154,15 +153,20 @@ function renderPDFAndZones() {
   );
 }
 
+// Appelle renderZones à chaque resize pour recaler les zones si la taille change
+window.addEventListener('resize', renderZones);
+
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
-  // Placement en pixels absolus, sans conversion, ni produit en croix
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = rect.width / canvas.width;
+  const scaleY = rect.height / canvas.height;
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
     if (f.signer_id != currentSignerId) return;
     const zone = document.createElement('div');
     zone.className = 'zone' + (f.signed ? ' signed' : '');
-    // Inverse Y pour retrouver l'origine en haut à gauche
+    // Placement direct, sans produit en croix, mais inversion axe Y pour PDF->HTML
     const zoneHeight = f.h || 40;
     const yInverted = canvas.height - f.y - zoneHeight;
     zone.style.left = f.x + "px";
@@ -200,8 +204,6 @@ function renderZones() {
     container.appendChild(zone);
   });
 }
-
-// (reste du code identique, inchangé)
 
 function startEditZone(zone, field, index) {
   if (zone.classList.contains('editing')) return;
