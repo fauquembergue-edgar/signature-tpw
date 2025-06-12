@@ -106,6 +106,73 @@
     @media (max-width: 740px) {
       #pdf-canvas, .pdf-wrapper { width: 98vw !important; height: auto !important; max-width: 100vw; }
     }
+
+    /* MODALE SIGNATURE */
+    .signature-modal {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(30,30,40,0.38);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .signature-modal-content {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px 18px 16px 18px;
+      box-shadow: 0 6px 48px #0004;
+      max-width: 96vw;
+      width: 90vw;
+      max-width: 410px;
+      min-width: 220px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .signature-modal h3 {
+      margin: 0 0 12px 0;
+      font-size: 1.18em;
+      color: #144372;
+      font-family: Montserrat,sans-serif;
+    }
+    .signature-modal-canvas {
+      width: 92vw;
+      max-width: 380px;
+      min-width: 180px;
+      height: 130px;
+      max-height: 220px;
+      background: #f8fafb;
+      border: 1.8px solid #338DFF;
+      border-radius: 5px;
+      display: block;
+      margin: 0 0 7px 0;
+      touch-action: none;
+    }
+    .signature-modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 7px;
+      width: 100%;
+    }
+    .signature-modal-actions button {
+      font-size: 1em;
+      padding: 6px 18px;
+      border-radius: 5px;
+      border: none;
+      background: #338DFF;
+      color: #fff;
+      cursor: pointer;
+    }
+    .signature-modal-actions button.cancel {
+      background: #aaa;
+      color: #fff;
+    }
+    .signature-modal-actions button:active {
+      background: #0f3152;
+    }
   </style>
 </head>
 <body>
@@ -125,6 +192,19 @@
     <textarea id="message-final" rows="3" cols="50" placeholder="Un commentaire pour le prochain signataire…"></textarea>
   </div>
   <button id="submit-btn">Valider toutes mes zones et envoyer</button>
+
+<!-- SIGNATURE MODAL (hidden by default) -->
+<div id="signature-modal" class="signature-modal" style="display:none;">
+  <div class="signature-modal-content">
+    <h3>Signer dans la zone ci-dessous</h3>
+    <canvas id="signature-modal-canvas" class="signature-modal-canvas"></canvas>
+    <div class="signature-modal-actions">
+      <button id="modal-clear">Effacer</button>
+      <button id="modal-validate">Valider</button>
+      <button id="modal-cancel" class="cancel">Annuler</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const sessionId = "{{ session_id }}";
@@ -211,7 +291,12 @@ function renderZones() {
     if (f.signer_id == currentSignerId) {
       zone.addEventListener('click', function(e) {
         e.stopPropagation();
-        startEditZone(zone, f, index);
+        if(f.type === "signature") {
+            openSignatureModal(f, index);
+        }
+        else {
+            startEditZone(zone, f, index);
+        }
       });
     }
     if (f.type === "text") zone.textContent = "Zone de texte";
@@ -220,6 +305,119 @@ function renderZones() {
     container.appendChild(zone);
   });
 }
+
+// -------- MODALE DE SIGNATURE --------
+function openSignatureModal(field, index) {
+  const modal = document.getElementById('signature-modal');
+  const modalCanvas = document.getElementById('signature-modal-canvas');
+  const clearBtn = document.getElementById('modal-clear');
+  const validateBtn = document.getElementById('modal-validate');
+  const cancelBtn = document.getElementById('modal-cancel');
+
+  // Taille responsive
+  let w = Math.min(window.innerWidth * 0.88, 380);
+  let h = Math.max(120, Math.min(200, window.innerHeight * 0.23));
+  modalCanvas.width = w;
+  modalCanvas.height = h;
+
+  let ctx = modalCanvas.getContext("2d");
+  ctx.clearRect(0,0,w,h);
+
+  let drawing = false, last = null;
+
+  function getXY(e, can, isTouch) {
+      const rect = can.getBoundingClientRect();
+      let x, y;
+      if (isTouch && e.touches && e.touches.length === 1) {
+        x = (e.touches[0].clientX - rect.left) * (can.width / rect.width);
+        y = (e.touches[0].clientY - rect.top) * (can.height / rect.height);
+      } else if (e.offsetX !== undefined) {
+        x = e.offsetX * (can.width / rect.width);
+        y = e.offsetY * (can.height / rect.height);
+      }
+      return {x, y};
+  }
+
+  // Events
+  function pointerDown(e) { drawing = true; last = getXY(e, modalCanvas, e.type.startsWith('touch')); }
+  function pointerMove(e) {
+    if (!drawing) return;
+    let xy = getXY(e, modalCanvas, e.type.startsWith('touch'));
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(xy.x, xy.y);
+    ctx.stroke();
+    last = xy;
+    e.preventDefault();
+  }
+  function pointerUpCancel(e) { drawing = false; }
+
+  modalCanvas.addEventListener('mousedown', pointerDown);
+  modalCanvas.addEventListener('mousemove', pointerMove);
+  modalCanvas.addEventListener('mouseup', pointerUpCancel);
+  modalCanvas.addEventListener('mouseout', pointerUpCancel);
+  modalCanvas.addEventListener('touchstart', pointerDown, {passive: false});
+  modalCanvas.addEventListener('touchmove', pointerMove, {passive: false});
+  modalCanvas.addEventListener('touchend', pointerUpCancel);
+  modalCanvas.addEventListener('touchcancel', pointerUpCancel);
+
+  // Effacer
+  clearBtn.onclick = function() {
+    ctx.clearRect(0,0,modalCanvas.width,modalCanvas.height);
+  };
+
+  // Valider
+  validateBtn.onclick = function() {
+    let imgData = ctx.getImageData(0,0,modalCanvas.width,modalCanvas.height).data;
+    let isBlank = true;
+    for(let i=0;i<imgData.length;i++) if(imgData[i]!==0) { isBlank=false; break;}
+    if (isBlank) { alert("Merci de signer dans la zone !"); return; }
+    let dataURL = modalCanvas.toDataURL("image/png");
+    fetch('/fill-field', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId,
+        step: step,
+        field_index: index,
+        value: dataURL,
+        x_px: field.x,
+        y_px: field.y,
+        field_height: field.h || 40,
+        html_width_px: canvas.width,
+        html_height_px: canvas.height
+      })
+    }).then(() => {
+      fields[index].value = dataURL;
+      fields[index].signed = true;
+      modal.style.display = "none";
+      cleanup();
+      renderZones();
+      checkCompletion();
+    });
+  };
+
+  // Annuler
+  cancelBtn.onclick = function() {
+    modal.style.display = "none";
+    cleanup();
+  };
+
+  function cleanup() {
+    modalCanvas.removeEventListener('mousedown', pointerDown);
+    modalCanvas.removeEventListener('mousemove', pointerMove);
+    modalCanvas.removeEventListener('mouseup', pointerUpCancel);
+    modalCanvas.removeEventListener('mouseout', pointerUpCancel);
+    modalCanvas.removeEventListener('touchstart', pointerDown);
+    modalCanvas.removeEventListener('touchmove', pointerMove);
+    modalCanvas.removeEventListener('touchend', pointerUpCancel);
+    modalCanvas.removeEventListener('touchcancel', pointerUpCancel);
+  }
+
+  modal.style.display = "flex";
+}
+
+// -------- FIN MODALE SIGNATURE --------
 
 function startEditZone(zone, field, index) {
   // Évite double édition
@@ -266,96 +464,6 @@ function startEditZone(zone, field, index) {
       });
     }
     function cancelInlineEdit() { renderZones(); }
-  }
-  else if (field.type === "signature") {
-    // Ajoute un <canvas> pour dessiner la signature
-    let signCanvas = document.createElement('canvas');
-    signCanvas.width = zone.offsetWidth;
-    signCanvas.height = zone.offsetHeight-28;
-    signCanvas.className = "inline-canvas";
-    let ctx = signCanvas.getContext("2d");
-    let drawing = false, last = null;
-    signCanvas.addEventListener('mousedown', e => { drawing = true; last = getXY(e, signCanvas); });
-    signCanvas.addEventListener('mousemove', e => {
-      if (!drawing) return;
-      let xy = getXY(e, signCanvas);
-      ctx.beginPath();
-      ctx.moveTo(last.x, last.y);
-      ctx.lineTo(xy.x, xy.y);
-      ctx.stroke();
-      last = xy;
-    });
-    signCanvas.addEventListener('mouseup', () => { drawing = false; });
-    signCanvas.addEventListener('mouseout', () => { drawing = false; });
-    signCanvas.addEventListener('touchstart', e => { drawing = true; last = getXY(e, signCanvas, true); });
-    signCanvas.addEventListener('touchmove', e => {
-      if (!drawing) return;
-      let xy = getXY(e, signCanvas, true);
-      ctx.beginPath();
-      ctx.moveTo(last.x, last.y);
-      ctx.lineTo(xy.x, xy.y);
-      ctx.stroke();
-      last = xy;
-    });
-    signCanvas.addEventListener('touchend', () => { drawing = false; });
-    signCanvas.addEventListener('touchcancel', () => { drawing = false; });
-    function getXY(e, can, isTouch) {
-      const rect = can.getBoundingClientRect();
-      let x, y;
-      if (isTouch && e.touches && e.touches.length === 1) {
-        x = (e.touches[0].clientX - rect.left) * (can.width / rect.width);
-        y = (e.touches[0].clientY - rect.top) * (can.height / rect.height);
-      } else if (e.offsetX !== undefined) {
-        x = e.offsetX * (can.width / rect.width);
-        y = e.offsetY * (can.height / rect.height);
-      }
-      return {x, y};
-    }
-    zone.appendChild(signCanvas);
-
-    // Actions (Effacer / Valider)
-    let actions = document.createElement('div');
-    actions.className = "sig-actions";
-    let clearBtn = document.createElement('button');
-    clearBtn.textContent = "Effacer";
-    clearBtn.onclick = function(e) { ctx.clearRect(0,0,signCanvas.width,signCanvas.height); };
-    let validerBtn = document.createElement('button');
-    validerBtn.textContent = "Valider";
-    validerBtn.onclick = function(e) {
-      // Vérifie si la signature est non vide
-      let imgData = ctx.getImageData(0,0,signCanvas.width,signCanvas.height).data;
-      let isBlank = true;
-      for(let i=0;i<imgData.length;i++) if(imgData[i]!==0) { isBlank=false; break;}
-      if (isBlank) { alert("Merci de signer dans la zone !"); return; }
-      let dataURL = signCanvas.toDataURL("image/png");
-      fetch('/fill-field', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          step: step,
-          field_index: index,
-          value: dataURL,
-          x_px: field.x,
-          y_px: field.y,
-          field_height: field.h || 40,
-          html_width_px: canvas.width,
-          html_height_px: canvas.height
-        })
-      }).then(() => {
-        fields[index].value = dataURL;
-        fields[index].signed = true;
-        renderZones();
-        checkCompletion();
-      });
-    };
-    let cancelBtn = document.createElement('button');
-    cancelBtn.textContent = "Annuler";
-    cancelBtn.onclick = function(e) { renderZones(); };
-    actions.appendChild(clearBtn);
-    actions.appendChild(validerBtn);
-    actions.appendChild(cancelBtn);
-    zone.appendChild(actions);
   }
   else if (field.type === "checkbox") {
     let checkbox = document.createElement('input');
