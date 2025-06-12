@@ -8,8 +8,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Roboto', Arial, sans-serif; background: #f4f4f4; padding: 20px; }
-    .pdf-wrapper { position: relative; display: inline-block; }
-    canvas { border: 1px solid #ccc; background: #fff; }
+    .pdf-wrapper { position: relative; display: inline-block; width: 100%; max-width: 700px; }
+    canvas { border: 1px solid #ccc; background: #fff; width: 100% !important; height: auto !important; display: block; }
     .zone {
       position: absolute;
       border: 2px dashed #FF5733;
@@ -140,15 +140,19 @@ const submitBtn = document.getElementById('submit-btn');
 let scale = 1.5; // Sera recalculé dynamiquement
 
 function computeScale(page) {
-  // largeur max du PDF à l’écran, par exemple 98vw ou 700px max
-  const maxWidth = Math.min(window.innerWidth * 0.98, 700); // adapte la valeur max si besoin
+  const maxWidth = Math.min(window.innerWidth * 0.98, 700);
   const viewport = page.getViewport({ scale: 1 });
   return maxWidth / viewport.width;
 }
 
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
-  // On n'affiche que les zones du signataire courant (signées ou non)
+
+  // Taille CSS du canvas affiché
+  const canvasRect = canvas.getBoundingClientRect();
+  const canvasWidth = canvasRect.width;
+  const canvasHeight = canvasRect.height;
+
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
     if (f.signer_id != currentSignerId) return;
@@ -156,10 +160,18 @@ function renderZones() {
     const zone = document.createElement('div');
     zone.className = 'zone';
     if (f.signed) zone.classList.add('signed');
-    zone.style.left   = (f.x * scale) + "px";
-    zone.style.top    = (f.y * scale) + "px";
-    zone.style.width  = ((f.w || 100) * scale) + "px";
-    zone.style.height = ((f.h || 40) * scale) + "px";
+
+    // Positionnement en pourcentage pour coller au zoom CSS du canvas (anti-décalage)
+    const leftPct = (f.x / canvas.width) * 100;
+    const topPct = (f.y / canvas.height) * 100;
+    const widthPct = ((f.w || 100) / canvas.width) * 100;
+    const heightPct = ((f.h || 40) / canvas.height) * 100;
+
+    zone.style.left = leftPct + "%";
+    zone.style.top = topPct + "%";
+    zone.style.width = widthPct + "%";
+    zone.style.height = heightPct + "%";
+
     zone.dataset.type  = f.type;
     zone.dataset.index = index;
     zone.dataset.signer_id = f.signer_id;
@@ -183,7 +195,6 @@ function renderZones() {
       return;
     }
 
-    // Non signée, zone éditable
     if (f.signer_id == currentSignerId) {
       zone.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -198,12 +209,9 @@ function renderZones() {
 }
 
 function startEditZone(zone, field, index) {
-  // Évite double édition
   if (zone.classList.contains('editing')) return;
-  // Vire le texte
   zone.innerHTML = "";
   zone.classList.add('editing');
-  // Selon le type
   if (field.type === "text") {
     let input = document.createElement('input');
     input.type = "text";
@@ -244,7 +252,6 @@ function startEditZone(zone, field, index) {
     function cancelInlineEdit() { renderZones(); }
   }
   else if (field.type === "signature") {
-    // Ajoute un <canvas> pour dessiner la signature
     let signCanvas = document.createElement('canvas');
     signCanvas.width = zone.offsetWidth;
     signCanvas.height = zone.offsetHeight-28;
@@ -289,7 +296,6 @@ function startEditZone(zone, field, index) {
     }
     zone.appendChild(signCanvas);
 
-    // Actions (Effacer / Valider)
     let actions = document.createElement('div');
     actions.className = "sig-actions";
     let clearBtn = document.createElement('button');
@@ -298,7 +304,6 @@ function startEditZone(zone, field, index) {
     let validerBtn = document.createElement('button');
     validerBtn.textContent = "Valider";
     validerBtn.onclick = function(e) {
-      // Vérifie si la signature est non vide
       let imgData = ctx.getImageData(0,0,signCanvas.width,signCanvas.height).data;
       let isBlank = true;
       for(let i=0;i<imgData.length;i++) if(imgData[i]!==0) { isBlank=false; break;}
@@ -338,7 +343,6 @@ function startEditZone(zone, field, index) {
     checkbox.type = "checkbox";
     checkbox.className = "checkbox-real";
     checkbox.checked = field.value === true || field.value === "true" || field.value === "on";
-    // Ajoute un bouton "Valider" pour valider même si non coché
     let validerBtn = document.createElement('button');
     validerBtn.textContent = "Valider";
     validerBtn.onclick = function() {
@@ -349,7 +353,7 @@ function startEditZone(zone, field, index) {
           session_id: sessionId,
           step: step,
           field_index: index,
-          value: checkbox.checked, // true ou false !
+          value: checkbox.checked,
           x_px: field.x,
           y_px: field.y,
           field_height: field.h || 15,
@@ -389,20 +393,20 @@ submitBtn.onclick = () => {
 function renderPDF() {
   pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdf =>
     pdf.getPage(1).then(page => {
-      // Calcule un scale dynamique selon la largeur écran/conteneur
       scale = computeScale(page);
       const viewport = page.getViewport({ scale: scale });
       canvas.height = viewport.height;
       canvas.width = viewport.width;
-      canvas.style.width = (viewport.width) + "px";
-      canvas.style.height = (viewport.height) + "px";
+      canvas.style.width = "100%";
+      canvas.style.height = "auto";
+      container.style.width = canvas.width + "px";
+      container.style.height = canvas.height + "px";
       const ctx = canvas.getContext('2d');
       page.render({ canvasContext: ctx, viewport }).promise.then(renderZones);
     })
   );
 }
 
-// Ré-adapte le PDF et les zones lors du redimensionnement de la fenêtre
 window.addEventListener('resize', renderPDF);
 
 renderPDF();
