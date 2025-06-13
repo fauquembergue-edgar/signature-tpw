@@ -530,6 +530,7 @@ function saveTemplate() {
   if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
   const templateFields = fields.map(f => {
     if (f.type === "statictext") {
+      // On garde value uniquement pour affichage mais elle n'est JAMAIS incrustée dans le PDF du template
       return { type: f.type, x: f.x, y: f.y, value: f.value };
     } else {
       return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id };
