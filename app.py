@@ -86,7 +86,7 @@ def apply_checkbox(pdf_path, x, y, checked, size=5, page_num=0, offset_x=0, offs
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=0, offset_y=-15):
+def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=0, offset_y=-5):
     static_fields = [f for f in fields if f.get("type") == "statictext"]
     if not static_fields:
         return
