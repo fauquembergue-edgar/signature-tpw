@@ -86,7 +86,7 @@ def apply_checkbox(pdf_path, x, y, checked, size=5, page_num=0, offset_x=0, offs
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=0, offset_y=-20):
+def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=0, offset_y=3):
     static_fields = [f for f in fields if f.get("type") == "statictext"]
     if not static_fields:
         return
@@ -271,14 +271,14 @@ def fill_field():
     if field['type'] == 'signature':
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_path, field['value'], new_pdf_path, x, y, w, h, page_num, offset_x=0, offset_y=20)
+        apply_signature(pdf_path, field['value'], new_pdf_path, x, y, w, h, page_num, offset_x=0, offset_y=10)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path, x, y, data['value'] in ['true','on','1', True], size=max(w, h), page_num=page_num, offset_x=0, offset_y=5)
+        apply_checkbox(pdf_path, x, y, data['value'] in ['true','on','1', True], size=max(w, h), page_num=page_num, offset_x=0, offset_y=2)
     elif field['type'] == 'statictext':
         field['value'] = data['value']
     else:
-        apply_text(pdf_path, x, y, data['value'], page_num=page_num, offset_x=0, offset_y=5)
+        apply_text(pdf_path, x, y, data['value'], page_num=page_num, offset_x=0, offset_y=3)
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
