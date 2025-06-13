@@ -73,7 +73,6 @@
       vertical-align: middle;
       accent-color: #FF5733;
     }
-    /* Agrandit la checkbox lors de l'édition */
     .checkbox-editing {
       width: 38px !important;
       height: 38px !important;
@@ -201,6 +200,17 @@
     .signature-modal-actions button:active {
       background: #0f3152;
     }
+    .statictext-overlay {
+      font-family: 'Roboto', Arial, sans-serif;
+      background: transparent;
+      pointer-events: none;
+      user-select: none;
+      z-index: 5;
+      color: #222;
+      font-weight: 500;
+      line-height: 1.2;
+      position: absolute;
+    }
   </style>
 </head>
 <body>
@@ -280,6 +290,22 @@ function renderPDF() {
 
 function renderZones() {
   document.querySelectorAll('.zone').forEach(z => z.remove());
+  document.querySelectorAll('.statictext-overlay').forEach(z => z.remove());
+
+  // 1. Affiche TOUS les statictext en overlay, pour tout le monde
+  fields.forEach((f, index) => {
+    if (f.type === 'statictext') {
+      const div = document.createElement('div');
+      div.className = 'statictext-overlay';
+      div.style.left = (f.x * currentScale) + "px";
+      div.style.top = (f.y * currentScale) + "px";
+      div.style.fontSize = ((f.font_size || 14) * currentScale) + "px";
+      div.textContent = f.value || '';
+      container.appendChild(div);
+    }
+  });
+
+  // 2. Affiche les zones éditables comme avant
   fields.forEach((f, index) => {
     if (f.type === 'statictext') return;
     if (f.signer_id != currentSignerId) return;
