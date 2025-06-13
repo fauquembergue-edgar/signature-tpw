@@ -274,7 +274,7 @@ def fill_field():
         apply_signature(pdf_path, field['value'], new_pdf_path, x, y, w, h, page_num, offset_x=0, offset_y=10)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path, x, y, data['value'] in ['true','on','1', True], size=5, page_num=page_num, offset_x=0, offset_y=2)
+        apply_checkbox(pdf_path, x, y, data['value'] in ['true','on','1', True], size=max(w, h), page_num=page_num, offset_x=0, offset_y=2)
     elif field['type'] == 'statictext':
         field['value'] = data['value']
     else:
