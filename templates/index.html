@@ -548,7 +548,6 @@ function saveTemplate() {
   const name = document.getElementById('template-name').value.trim();
   if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
   const templateFields = fields.map(f => {
-    // Nettoie tout ce qui n'est pas structure
     if (f.type === "statictext") {
       return { type: f.type, x: f.x, y: f.y, value: f.value };
     } else {
@@ -567,7 +566,7 @@ function saveTemplate() {
   .then(res => res.json())
   .then(data => {
     alert("Template enregistré.");
-    // On NE recharge PAS les zones ici
+    // Ne recharge pas les zones ici, on laisse la main à l'utilisateur pour modifier
   });
 }
 
@@ -585,7 +584,7 @@ function loadTemplate() {
       setTimeout(() => {
         data.fields.forEach(field => {
           const id = fieldId++;
-          let newField = { ...field, id }; // Clone pour éviter pollution template
+          let newField = { ...field, id };
           if (newField.type !== "statictext") {
             newField.email = "";
             delete newField.value;
@@ -620,7 +619,7 @@ function loadTemplate() {
           container.appendChild(div);
           enableDrag(div, id);
         });
-        // On demande les emails pour chaque signer_id présent
+        // Demande les emails pour chaque signer_id présent
         const signerIds = [...new Set(fields.filter(f => f.type !== "statictext").map(f => f.signer_id))];
         askForSignatairesEmails(signerIds);
       }, 500);
