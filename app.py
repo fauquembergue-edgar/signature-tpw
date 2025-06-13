@@ -43,7 +43,7 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
     with open(output_path or pdf_path, 'wb') as f:
         writer.write(f)
 
-def apply_text(pdf_path, x, y, text, page_num=0, offset_x=0, offset_y=-5, font_size=14):
+def apply_text(pdf_path, x, y, text, page_num=0, offset_x=0, offset_y=-15, font_size=14):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     y_pdf = pdf_height - y - font_size
     packet = io.BytesIO()
@@ -55,7 +55,7 @@ def apply_text(pdf_path, x, y, text, page_num=0, offset_x=0, offset_y=-5, font_s
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_signature(pdf_path, sig_data, output_path, x, y, w, h, page_num=0, offset_x=0, offset_y=-15):
+def apply_signature(pdf_path, sig_data, output_path, x, y, w, h, page_num=0, offset_x=0, offset_y=-40):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     if sig_data.startswith("data:image/png;base64,"):
         sig_data = sig_data.split(",", 1)[1]
@@ -72,7 +72,7 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, w, h, page_num=0, off
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=output_path, page_num=page_num)
 
-def apply_checkbox(pdf_path, x, y, checked, size=5, page_num=0, offset_x=0, offset_y=-5):
+def apply_checkbox(pdf_path, x, y, checked, size=5, page_num=0, offset_x=0, offset_y=-15):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
     y_pdf = pdf_height - y - size
     packet = io.BytesIO()
@@ -86,7 +86,7 @@ def apply_checkbox(pdf_path, x, y, checked, size=5, page_num=0, offset_x=0, offs
     packet.seek(0)
     merge_overlay(pdf_path, packet, output_path=pdf_path, page_num=page_num)
 
-def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=0, offset_y=-5):
+def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, offset_x=0, offset_y=-15):
     static_fields = [f for f in fields if f.get("type") == "statictext"]
     if not static_fields:
         return
