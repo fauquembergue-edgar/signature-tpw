@@ -268,19 +268,17 @@ def fill_field():
     y = float(field.get('y', 0))
     w = float(field.get('w', 120))
     h = float(field.get('h', 40))
-    offset_x = float(field.get('offset_x', 0))
-    offset_y = float(field.get('offset_y', -5))
     if field['type'] == 'signature':
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
-        apply_signature(pdf_path, field['value'], new_pdf_path, x, y, w, h, page_num, offset_x, offset_y)
+        apply_signature(pdf_path, field['value'], new_pdf_path, x, y, w, h, page_num, offset_x=0, offset_y=20)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
-        apply_checkbox(pdf_path, x, y, data['value'] in ['true','on','1', True], size=max(w, h), page_num=page_num, offset_x=offset_x, offset_y=offset_y)
+        apply_checkbox(pdf_path, x, y, data['value'] in ['true','on','1', True], size=max(w, h), page_num=page_num, offset_x=0, offset_y=5)
     elif field['type'] == 'statictext':
         field['value'] = data['value']
     else:
-        apply_text(pdf_path, x, y, data['value'], page_num=page_num, offset_x=offset_x, offset_y=offset_y)
+        apply_text(pdf_path, x, y, data['value'], page_num=page_num, offset_x=0, offset_y=5)
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'ok'})
