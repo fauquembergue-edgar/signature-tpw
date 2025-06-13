@@ -43,11 +43,8 @@ def merge_overlay(pdf_path, overlay_pdf, output_path=None, page_num=0):
     with open(output_path or pdf_path, 'wb') as f:
         writer.write(f)
 
-# ----------- Placement ABSOLU pour tous les apply fonctions -----------
-
 def apply_text(pdf_path, x, y, text, page_num=0, offset_x=0, offset_y=3, font_size=14):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    # Inversion de l'axe Y
     y_pdf = pdf_height - y - font_size
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
@@ -69,7 +66,6 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, w, h, page_num=0, off
     img_io = io.BytesIO()
     image.save(img_io, format="PNG")
     img_io.seek(0)
-    # Inversion de l'axe Y pour la signature
     y_pdf = pdf_height - y - h
     can.drawImage(ImageReader(img_io), x + offset_x, y_pdf + offset_y, width=w, height=h, mask='auto')
     can.save()
@@ -78,7 +74,6 @@ def apply_signature(pdf_path, sig_data, output_path, x, y, w, h, page_num=0, off
 
 def apply_checkbox(pdf_path, x, y, checked, size=10, page_num=0, offset_x=0, offset_y=0):
     pdf_width, pdf_height = get_pdf_page_size(pdf_path, page_num)
-    # Inversion de l'axe Y pour la checkbox
     y_pdf = pdf_height - y - size
     packet = io.BytesIO()
     can = pdfcanvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
@@ -104,7 +99,6 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, off
         y_field  = float(field.get("y", 0))
         value    = field.get("value", "")
         font_size= float(field.get("font_size", 14))
-        # Inversion de l'axe Y pour le champ statique
         y_pdf = pdf_h - y_field - font_size
         can.setFont("Helvetica", font_size)
         can.drawString(x_field + offset_x, y_pdf + offset_y, value)
@@ -118,8 +112,6 @@ def apply_static_text_fields(pdf_path, fields, output_path=None, page_num=0, off
         writer.add_page(p)
     with open(output_path or pdf_path, "wb") as f:
         writer.write(f)
-
-# ------------- Reste du code identique, mais /fill-field doit passer x/y/w/h -----------
 
 @app.route('/')
 def index():
@@ -159,11 +151,13 @@ def save_template():
     name = data.get('name')
     if not name:
         return jsonify({'error': 'Nom de template requis'}), 400
-    # Nettoyage des champs pour template : pas d'email, pas de value, pas de signed
     cleaned_fields = []
     for field in data['fields']:
-        # On copie le champ pour ne pas modifier l'original
+        # On ne garde que l'essentiel pour le template
         field_clean = {k: v for k, v in field.items() if k not in ['email', 'value', 'signed']}
+        # Pour statictext, on garde value si elle existe
+        if field.get('type') == 'statictext' and 'value' in field:
+            field_clean['value'] = field['value']
         cleaned_fields.append(field_clean)
     path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
     with open(path, 'w') as f:
@@ -187,14 +181,14 @@ def define_fields():
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
     fields = data['fields']
-    # On attend de recevoir les nouveaux emails à chaque création de session
-    # Pas de propagation d'emails depuis un éventuel template,
-    # l'UI doit demander explicitement les emails pour chaque signer_id (via front)
+    # Vérifie présence email pour tous les champs à signer
+    for field in fields:
+        if field.get('type') != 'statictext' and not field.get('email'):
+            return jsonify({'error': 'Email manquant pour un signataire.'}), 400
     for i, field in enumerate(fields):
         field['signed'] = False
         field['step'] = i
         field['page'] = field.get('page', 0)
-        # S'assurer que w/h sont toujours présents
         if 'h' not in field:
             if field['type'] == 'signature':
                 field['h'] = 40
@@ -210,14 +204,12 @@ def define_fields():
             else:
                 field['w'] = 120
     pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
-    # *** On NE fusionne PAS les statictext dans le PDF lors de la création de session depuis template ***
-    # On ne doit appeler apply_static_text_fields que lors de la finalisation du document, pas à cette étape
     session_data = {
         'pdf': data['pdf'],
         'fields': fields,
         'email_message': message,
         'nom_demande': nom_demande,
-        'message_final': ''  # initialisation
+        'message_final': ''
     }
     session_file_path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(session_file_path, 'w') as f:
@@ -271,7 +263,6 @@ def fill_field():
     field['signed'] = True
     pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
     page_num = field.get('page', 0)
-    # Récupération placement absolu
     x = float(field.get('x', 0))
     y = float(field.get('y', 0))
     w = float(field.get('w', 120))
@@ -286,8 +277,6 @@ def fill_field():
     elif field['type'] == 'checkbox':
         apply_checkbox(pdf_path, x, y, data['value'] in ['true','on','1', True], size=max(w, h), page_num=page_num, offset_x=offset_x, offset_y=offset_y)
     elif field['type'] == 'statictext':
-        # On n'applique le statictext que lors de la finalisation du PDF,
-        # donc ici rien à faire (ou éventuellement enregistrer la nouvelle value)
         field['value'] = data['value']
     else:
         apply_text(pdf_path, x, y, data['value'], page_num=page_num, offset_x=offset_x, offset_y=offset_y)
@@ -316,7 +305,6 @@ def finalise_signature():
         send_email(data['session_id'], next_step, message_final=session_data.get('message_final'))
         session_data['message_final'] = ""
     else:
-        # À la toute fin, on applique les statictext sur le PDF final
         pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
         apply_static_text_fields(pdf_path, all_fields, output_path=pdf_path)
         send_pdf_to_all(session_data)
