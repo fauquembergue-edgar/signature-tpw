@@ -533,7 +533,6 @@ document.getElementById('assign-fields-form').onsubmit = function () {
     alert("Aucun PDF sélectionné !");
     return false;
   }
-  // Vérification : chaque champ à signer a un email (pour éviter bug !)
   const missing = fields.filter(f => f.type !== "statictext" && (!f.email || f.email.trim() === ""));
   if (missing.length > 0) {
     alert("Veuillez renseigner l'email pour chaque signataire avant de lancer le processus.");
@@ -569,34 +568,7 @@ function saveTemplate() {
   .then(res => res.json())
   .then(data => {
     alert("Template enregistré.");
-    fields = [];
-    currentPdf = data.pdf;
-    container.style.display = 'block';
-    loadPDF('/uploads/' + currentPdf);
-    setTimeout(() => {
-      data.fields.forEach(field => {
-        const id = fieldId++;
-        field.id = id;
-        fields.push(field);
-        const div = document.createElement('div');
-        div.className = 'field-box';
-        if (field.type === "statictext") {
-          div.classList.add('statictext-box');
-          div.innerText = field.value;
-        } else {
-          div.innerText = field.type.toUpperCase();
-        }
-        div.style.left = (field.x * scale) + 'px';
-        div.style.top = (field.y * scale) + 'px';
-        let color = "#27348b";
-        if (field.type !== "statictext") {
-          color = COLORS[field.signer_id % COLORS.length];
-        }
-        div.style.border = `2px dashed ${color}`;
-        container.appendChild(div);
-        enableDrag(div, id);
-      });
-    }, 500);
+    // On ne recharge pas les zones ici, pour éviter doublons.
   });
 }
 
@@ -605,7 +577,6 @@ function loadTemplate() {
   fetch('/load-template/' + name)
     .then(res => res.json())
     .then(data => {
-      // Vider le PDF et la liste fields
       fields = [];
       container.innerHTML = "";
       currentPdf = data.pdf;
@@ -616,14 +587,8 @@ function loadTemplate() {
         data.fields.forEach(field => {
           const id = fieldId++;
           field.id = id;
-          // Synchronise signer_id/email
           if (field.type !== "statictext") {
-            let sig = signataires.find(s => s.id === field.signer_id);
-            if (sig) {
-              field.email = sig.email;
-            } else {
-              field.email = "";
-            }
+            field.email = "";
           }
           fields.push(field);
 
@@ -631,7 +596,7 @@ function loadTemplate() {
           div.className = 'field-box';
           if (field.type === "statictext") {
             div.classList.add('statictext-box');
-            div.innerText = field.value;
+            div.innerText = field.value || "";
           } else {
             div.innerText = field.type.toUpperCase();
           }
@@ -655,11 +620,9 @@ function loadTemplate() {
           enableDrag(div, id);
         });
 
-        // Après ajout des champs, vérifie s'il manque des emails
-        const missing = fields.filter(f => f.type !== "statictext" && (!f.email || f.email.trim() === ""));
-        if (missing.length > 0) {
-          askForSignatairesEmails(missing.map(f => f.signer_id));
-        }
+        // On demande les emails pour chaque signer_id présent
+        const signerIds = [...new Set(fields.filter(f => f.type !== "statictext").map(f => f.signer_id))];
+        askForSignatairesEmails(signerIds);
       }, 500);
     });
 }
@@ -669,9 +632,9 @@ function askForSignatairesEmails(signerIds) {
   if (signerIds.length === 0) return;
   const modalBg = document.getElementById('modal-emails-bg');
   const modalContent = document.getElementById('modal-emails-content');
-  let html = `<h4>Renseignez les emails des signataires manquants :</h4>`;
+  let html = `<h4>Renseignez les emails des signataires :</h4>`;
   signerIds.forEach((id, i) => {
-    html += `<label>Signataire ${parseInt(id)+1} (étape ${id+1}) : <input type="email" id="email-sign-${id}" required></label>`;
+    html += `<label>Signataire ${parseInt(i)+1} (étape ${id+1}) : <input type="email" id="email-sign-${id}" required></label>`;
   });
   html += `<button class="btn btn-accent" id="validate-emails">Valider</button>`;
   modalContent.innerHTML = html;
@@ -692,8 +655,7 @@ function askForSignatairesEmails(signerIds) {
         f.email = mapping[f.signer_id];
       }
     });
-    // Mets à jour la liste des signataires globale aussi !
-    signerIds.forEach(id => {
+    signerIds.forEach((id, idx) => {
       let sig = signataires.find(s => s.id === id);
       if (sig) {
         sig.email = mapping[id];
@@ -702,7 +664,7 @@ function askForSignatairesEmails(signerIds) {
       }
     });
     modalBg.style.display = "none";
-    alert("Emails enregistrés pour les signataires manquants.");
+    alert("Emails enregistrés pour les signataires.");
   }
 }
 </script>
