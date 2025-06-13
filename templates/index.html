@@ -302,7 +302,6 @@
   </style>
 </head>
 <body>
-
 <header>
   <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAYAAABkZC3zAAABxUlEQVR4nO3bQY6DMBBF0aRwaT5fZj6B4pQ2q9tq8zT4kI/6p+zK1XnQCAAAAAAAAAAAAoJQkqVSCW25p8nS6bqfJ8VUzv9A6mV8r6VwH+W9QX9w4U4x+3tEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEAAAAAAAAAAAAAAABwH+YHwXyM9BUAAAAASUVORK5CYII=" alt="Logo TPW Nord Concassage">
   <h1>TPW Nord Concassage</h1>
@@ -310,27 +309,22 @@
     Digitalisez vos formulaires et signatures PDF
   </div>
 </header>
-
 <main>
   <div id="left">
     <h2>Créer un formulaire PDF à signer</h2>
-
     <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data" class="form-section">
       <label for="pdf">Charger un PDF à annoter</label>
       <input type="file" name="pdf" id="pdf" accept=".pdf" required>
       <input type="submit" value="Charger le PDF" class="btn btn-accent">
     </form>
-
     <div class="form-section">
       <label for="nom-demande">Nom de la demande :</label>
       <input type="text" id="nom-demande" placeholder="Nom du processus">
     </div>
-
     <div class="form-section">
       <label for="email-message">Message email :</label>
       <textarea id="email-message" placeholder="Message à inclure dans l’email…" rows="3" cols="60"></textarea>
     </div>
-
     <div class="form-section">
       <label>Templates :</label>
       <input type="text" id="template-name" placeholder="Nom du template">
@@ -343,14 +337,12 @@
       </select>
       <button class="btn" onclick="loadTemplate()">📂 Charger</button>
     </div>
-
     <div class="form-section">
       <label>Ajouter des signataires :</label>
       <div id="signataires-list"></div>
       <input type="email" id="new-email" placeholder="Email du signataire">
       <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
     </div>
-
     <div class="form-section" id="champ-section" style="margin-bottom: 0;">
       <label>Type de champ à ajouter :</label>
       <button class="btn" onclick="selectType('text')">Zone de texte</button>
@@ -359,11 +351,9 @@
       <button class="btn btn-accent" onclick="selectType('statictext')">Zone texte statique</button>
       <span style="margin-left:8px; color:#888; font-size:0.95em;">(Cliquez sur le PDF pour placer le champ)</span>
     </div>
-
-    <div id="pdf-container">
+    <div id="pdf-container" style="position: relative; display: none;">
       <canvas id="pdf-canvas"></canvas>
     </div>
-
     <form id="assign-fields-form" action="/define-fields" method="post" class="form-section" style="background:transparent;box-shadow:none;">
       <input type="hidden" name="fields_json" id="fields-json">
       <input type="hidden" name="email_message" id="email-message-hidden">
@@ -371,7 +361,6 @@
       <input type="submit" value="📤 Lancer le processus de signature" class="btn btn-accent" style="font-size:1.12em;">
     </form>
   </div>
-
   <div id="right">
     <h2 style="margin-bottom:18px;"><span style="color:var(--tpw-accent);">🧾</span> Suivi des signatures</h2>
     <table>
@@ -388,13 +377,9 @@
     </table>
   </div>
 </main>
-
 <div id="modal-emails-bg" class="modal-emails-bg" style="display:none;">
-  <div class="modal-emails-content" id="modal-emails-content">
-    <!-- contenu dynamique JS -->
-  </div>
+  <div class="modal-emails-content" id="modal-emails-content"></div>
 </div>
-
 <script>
 let fields = [];
 let fieldId = 0;
@@ -415,11 +400,13 @@ document.getElementById('upload-form').onsubmit = function(e) {
     .then(data => {
       currentPdf = data.filename;
       container.style.display = 'block';
-      loadPDF('/uploads/' + data.filename);
+      loadPDF('/uploads/' + data.filename, () => {
+        redrawFields();
+      });
     });
 };
 
-function loadPDF(url) {
+function loadPDF(url, callback) {
   const loadingTask = pdfjsLib.getDocument(url);
   loadingTask.promise.then(pdf => {
     pdf.getPage(1).then(page => {
@@ -427,7 +414,10 @@ function loadPDF(url) {
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       const context = canvas.getContext('2d');
-      page.render({ canvasContext: context, viewport: viewport });
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      page.render({ canvasContext: context, viewport: viewport }).promise.then(() => {
+        if (callback) callback();
+      });
     });
   });
 }
@@ -481,51 +471,42 @@ canvas.addEventListener('click', function(event) {
   }
   fields.push(field);
 
+  addFieldBoxToPDF(field);
+});
+
+function addFieldBoxToPDF(field) {
   const div = document.createElement('div');
   div.className = 'field-box';
-  if (currentType === "statictext") {
+  if (field.type === "statictext") {
     div.classList.add('statictext-box');
     div.innerText = field.value;
   } else {
-    div.innerText = currentType.toUpperCase();
+    div.innerText = field.type.toUpperCase();
   }
-  div.style.left = (x * scale) + 'px';
-  div.style.top = (y * scale) + 'px';
+  div.style.left = (field.x * scale) + 'px';
+  div.style.top = (field.y * scale) + 'px';
+  let color = "#27348b";
+  if (field.type !== "statictext") {
+    color = COLORS[field.signer_id % COLORS.length];
+  }
   div.style.border = `2px dashed ${color}`;
   const removeBtn = document.createElement('button');
   removeBtn.innerText = '×';
   removeBtn.className = 'remove-btn';
   removeBtn.onclick = function() {
-    const index = fields.findIndex(f => f.id === id);
+    const index = fields.findIndex(f => f.id === field.id);
     if (index !== -1) fields.splice(index, 1);
     div.remove();
   };
   div.appendChild(removeBtn);
   container.appendChild(div);
-  enableDrag(div, id);
-});
+  enableDrag(div, field.id);
+}
 
-function enableDrag(element, id) {
-  let offsetX, offsetY;
-  element.onmousedown = function (event) {
-    offsetX = event.clientX - parseInt(element.style.left);
-    offsetY = event.clientY - parseInt(element.style.top);
-    function moveAt(e) {
-      const x = (e.clientX - offsetX) / scale;
-      const y = (e.clientY - offsetY) / scale;
-      element.style.left = (x * scale) + 'px';
-      element.style.top = (y * scale) + 'px';
-      const updated = fields.find(f => f.id === id);
-      if (updated) { updated.x = x; updated.y = y; }
-    }
-    function onMouseMove(e) { moveAt(e); }
-    document.addEventListener('mousemove', onMouseMove);
-    document.onmouseup = function () {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.onmouseup = null;
-    };
-  };
-  element.ondragstart = () => false;
+function redrawFields() {
+  // Supprime toutes les boxes existantes (hors canvas)
+  [...container.querySelectorAll('.field-box')].forEach(div => div.remove());
+  fields.forEach(field => addFieldBoxToPDF(field));
 }
 
 document.getElementById('assign-fields-form').onsubmit = function () {
@@ -566,7 +547,6 @@ function saveTemplate() {
   .then(res => res.json())
   .then(data => {
     alert("Template enregistré.");
-    // Ne recharge pas les zones ici, on laisse la main à l'utilisateur pour modifier
   });
 }
 
@@ -576,12 +556,13 @@ function loadTemplate() {
     .then(res => res.json())
     .then(data => {
       fields = [];
-      container.innerHTML = "";
+      fieldId = 0;
       currentPdf = data.pdf;
       container.style.display = 'block';
-      loadPDF('/uploads/' + currentPdf);
-
-      setTimeout(() => {
+      // Recharge le PDF puis affiche les zones après rendu
+      loadPDF('/uploads/' + currentPdf, () => {
+        // Supprime toutes les field-box (si jamais)
+        [...container.querySelectorAll('.field-box')].forEach(div => div.remove());
         data.fields.forEach(field => {
           const id = fieldId++;
           let newField = { ...field, id };
@@ -591,38 +572,12 @@ function loadTemplate() {
             delete newField.signed;
           }
           fields.push(newField);
-
-          const div = document.createElement('div');
-          div.className = 'field-box';
-          if (newField.type === "statictext") {
-            div.classList.add('statictext-box');
-            div.innerText = newField.value || "";
-          } else {
-            div.innerText = newField.type.toUpperCase();
-          }
-          div.style.left = (newField.x * scale) + 'px';
-          div.style.top = (newField.y * scale) + 'px';
-          let color = "#27348b";
-          if (newField.type !== "statictext") {
-            color = COLORS[newField.signer_id % COLORS.length];
-          }
-          div.style.border = `2px dashed ${color}`;
-          const removeBtn = document.createElement('button');
-          removeBtn.innerText = '×';
-          removeBtn.className = 'remove-btn';
-          removeBtn.onclick = function() {
-            const index = fields.findIndex(f => f.id === id);
-            if (index !== -1) fields.splice(index, 1);
-            div.remove();
-          };
-          div.appendChild(removeBtn);
-          container.appendChild(div);
-          enableDrag(div, id);
+          addFieldBoxToPDF(newField);
         });
         // Demande les emails pour chaque signer_id présent
         const signerIds = [...new Set(fields.filter(f => f.type !== "statictext").map(f => f.signer_id))];
         askForSignatairesEmails(signerIds);
-      }, 500);
+      });
     });
 }
 
@@ -648,7 +603,6 @@ function askForSignatairesEmails(signerIds) {
       mapping[id] = val;
     });
     if (!ok) return alert("Veuillez renseigner tous les emails.");
-    // Mets à jour tous les fields avec le bon email
     fields.forEach(f => {
       if (f.type !== "statictext" && mapping[f.signer_id] !== undefined) {
         f.email = mapping[f.signer_id];
@@ -666,7 +620,29 @@ function askForSignatairesEmails(signerIds) {
     alert("Emails enregistrés pour les signataires.");
   }
 }
-</script>
 
+function enableDrag(element, id) {
+  let offsetX, offsetY;
+  element.onmousedown = function (event) {
+    offsetX = event.clientX - parseInt(element.style.left);
+    offsetY = event.clientY - parseInt(element.style.top);
+    function moveAt(e) {
+      const x = (e.clientX - offsetX) / scale;
+      const y = (e.clientY - offsetY) / scale;
+      element.style.left = (x * scale) + 'px';
+      element.style.top = (y * scale) + 'px';
+      const updated = fields.find(f => f.id === id);
+      if (updated) { updated.x = x; updated.y = y; }
+    }
+    function onMouseMove(e) { moveAt(e); }
+    document.addEventListener('mousemove', onMouseMove);
+    document.onmouseup = function () {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.onmouseup = null;
+    };
+  };
+  element.ondragstart = () => false;
+}
+</script>
 </body>
 </html>
