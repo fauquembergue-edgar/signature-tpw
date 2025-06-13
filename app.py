@@ -269,7 +269,7 @@ def fill_field():
     w = float(field.get('w', 120))
     h = float(field.get('h', 40))
     offset_x = float(field.get('offset_x', 0))
-    offset_y = float(field.get('offset_y', 0))
+    offset_y = float(field.get('offset_y', -5))
     if field['type'] == 'signature':
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
         new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
