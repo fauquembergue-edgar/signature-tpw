@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import io
 from PIL import Image
 from reportlab.lib.utils import ImageReader
+import shutil  # Ajout pour la gestion des copies de fichiers
 
 load_dotenv()
 
@@ -160,6 +161,7 @@ def save_template():
             field_clean['value'] = field['value']
         cleaned_fields.append(field_clean)
     path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
+    # IMPORTANT : on enregistre le nom du PDF VIERGE (jamais celui d'une session déjà signée)
     with open(path, 'w') as f:
         json.dump({'pdf': data['pdf'], 'fields': cleaned_fields}, f)
     return jsonify({'status': 'saved', 'pdf': data['pdf'], 'fields': cleaned_fields})
@@ -203,9 +205,13 @@ def define_fields():
                 field['w'] = 15
             else:
                 field['w'] = 120
-    pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
+    # ---- CORRECTION ICI ----
+    pdf_base_path = os.path.join(UPLOAD_FOLDER, data['pdf'])  # PDF de base (vierge)
+    session_pdf_name = f"session_{uuid.uuid4()}.pdf"
+    session_pdf_path = os.path.join(UPLOAD_FOLDER, session_pdf_name)
+    shutil.copy(pdf_base_path, session_pdf_path)  # On copie le PDF vierge pour la session
     session_data = {
-        'pdf': data['pdf'],
+        'pdf': session_pdf_name,  # On travaille sur la copie
         'fields': fields,
         'email_message': message,
         'nom_demande': nom_demande,
