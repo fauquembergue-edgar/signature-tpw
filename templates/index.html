@@ -247,7 +247,6 @@
     tr:nth-child(even) {
       background: #e9eef4;
     }
-    /* Ajout pour la modale emails */
     .modal-emails-bg {
       position: fixed;
       z-index: 10000;
@@ -345,7 +344,6 @@
       <button class="btn" onclick="loadTemplate()">📂 Charger</button>
     </div>
 
-    <!-- Ajout des signataires juste au dessus de types de champ -->
     <div class="form-section">
       <label>Ajouter des signataires :</label>
       <div id="signataires-list"></div>
@@ -353,7 +351,6 @@
       <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
     </div>
 
-    <!-- Types de champ à ajouter JUSTE au-dessus du PDF -->
     <div class="form-section" id="champ-section" style="margin-bottom: 0;">
       <label>Type de champ à ajouter :</label>
       <button class="btn" onclick="selectType('text')">Zone de texte</button>
@@ -392,7 +389,6 @@
   </div>
 </main>
 
-<!-- Modale emails (invisible par défaut) -->
 <div id="modal-emails-bg" class="modal-emails-bg" style="display:none;">
   <div class="modal-emails-content" id="modal-emails-content">
     <!-- contenu dynamique JS -->
@@ -604,55 +600,33 @@ function saveTemplate() {
   });
 }
 
-function askForSignatairesEmails() {
-  // Cherche tous les signer_id différents
-  const signerIds = [...new Set(fields.filter(f => f.type !== "statictext").map(f => f.signer_id))];
-  if (signerIds.length === 0) return;
-  // Affiche une modale pour chaque signer_id
-  const modalBg = document.getElementById('modal-emails-bg');
-  const modalContent = document.getElementById('modal-emails-content');
-  let html = `<h4>Renseignez les emails des signataires&nbsp;:</h4>`;
-  signerIds.forEach((id, i) => {
-    html += `<label>Signataire ${parseInt(i)+1} (étape ${id+1}) : <input type="email" id="email-sign-${id}" required></label>`;
-  });
-  html += `<button class="btn btn-accent" id="validate-emails">Valider</button>`;
-  modalContent.innerHTML = html;
-  modalBg.style.display = "flex";
-
-  document.getElementById('validate-emails').onclick = function() {
-    let ok = true;
-    let mapping = {};
-    signerIds.forEach(id => {
-      const val = document.getElementById('email-sign-'+id).value.trim();
-      if (!val) ok = false;
-      mapping[id] = val;
-    });
-    if (!ok) return alert("Veuillez renseigner tous les emails.");
-    // Mets à jour tous les fields avec le bon email
-    fields.forEach(f => {
-      if (f.type !== "statictext" && mapping[f.signer_id] !== undefined) {
-        f.email = mapping[f.signer_id];
-      }
-    });
-    modalBg.style.display = "none";
-    alert("Emails enregistrés pour chaque signataire.");
-  }
-}
-
 function loadTemplate() {
   const name = document.getElementById('template-select').value;
   fetch('/load-template/' + name)
     .then(res => res.json())
     .then(data => {
+      // Vider le PDF et la liste fields
       fields = [];
+      container.innerHTML = "";
       currentPdf = data.pdf;
       container.style.display = 'block';
       loadPDF('/uploads/' + currentPdf);
+
       setTimeout(() => {
         data.fields.forEach(field => {
           const id = fieldId++;
           field.id = id;
+          // Synchronise signer_id/email
+          if (field.type !== "statictext") {
+            let sig = signataires.find(s => s.id === field.signer_id);
+            if (sig) {
+              field.email = sig.email;
+            } else {
+              field.email = "";
+            }
+          }
           fields.push(field);
+
           const div = document.createElement('div');
           div.className = 'field-box';
           if (field.type === "statictext") {
@@ -680,10 +654,56 @@ function loadTemplate() {
           container.appendChild(div);
           enableDrag(div, id);
         });
-        // Après chargement du template, demander les emails des signataires
-        askForSignatairesEmails();
+
+        // Après ajout des champs, vérifie s'il manque des emails
+        const missing = fields.filter(f => f.type !== "statictext" && (!f.email || f.email.trim() === ""));
+        if (missing.length > 0) {
+          askForSignatairesEmails(missing.map(f => f.signer_id));
+        }
       }, 500);
     });
+}
+
+function askForSignatairesEmails(signerIds) {
+  signerIds = [...new Set(signerIds)];
+  if (signerIds.length === 0) return;
+  const modalBg = document.getElementById('modal-emails-bg');
+  const modalContent = document.getElementById('modal-emails-content');
+  let html = `<h4>Renseignez les emails des signataires manquants :</h4>`;
+  signerIds.forEach((id, i) => {
+    html += `<label>Signataire ${parseInt(id)+1} (étape ${id+1}) : <input type="email" id="email-sign-${id}" required></label>`;
+  });
+  html += `<button class="btn btn-accent" id="validate-emails">Valider</button>`;
+  modalContent.innerHTML = html;
+  modalBg.style.display = "flex";
+
+  document.getElementById('validate-emails').onclick = function() {
+    let ok = true;
+    let mapping = {};
+    signerIds.forEach(id => {
+      const val = document.getElementById('email-sign-'+id).value.trim();
+      if (!val) ok = false;
+      mapping[id] = val;
+    });
+    if (!ok) return alert("Veuillez renseigner tous les emails.");
+    // Mets à jour tous les fields avec le bon email
+    fields.forEach(f => {
+      if (f.type !== "statictext" && mapping[f.signer_id] !== undefined) {
+        f.email = mapping[f.signer_id];
+      }
+    });
+    // Mets à jour la liste des signataires globale aussi !
+    signerIds.forEach(id => {
+      let sig = signataires.find(s => s.id === id);
+      if (sig) {
+        sig.email = mapping[id];
+      } else {
+        signataires.push({ id: id, email: mapping[id] });
+      }
+    });
+    modalBg.style.display = "none";
+    alert("Emails enregistrés pour les signataires manquants.");
+  }
 }
 </script>
 
