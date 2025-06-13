@@ -530,7 +530,6 @@ function saveTemplate() {
   if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
   const templateFields = fields.map(f => {
     if (f.type === "statictext") {
-      // On garde value uniquement pour affichage mais elle n'est JAMAIS incrustée dans le PDF du template
       return { type: f.type, x: f.x, y: f.y, value: f.value };
     } else {
       return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id };
@@ -560,9 +559,7 @@ function loadTemplate() {
       fieldId = 0;
       currentPdf = data.pdf;
       container.style.display = 'block';
-      // Recharge le PDF puis affiche les zones après rendu
       loadPDF('/uploads/' + currentPdf, () => {
-        // Supprime toutes les field-box (si jamais)
         [...container.querySelectorAll('.field-box')].forEach(div => div.remove());
         data.fields.forEach(field => {
           const id = fieldId++;
@@ -575,7 +572,6 @@ function loadTemplate() {
           fields.push(newField);
           addFieldBoxToPDF(newField);
         });
-        // Demande les emails pour chaque signer_id présent
         const signerIds = [...new Set(fields.filter(f => f.type !== "statictext").map(f => f.signer_id))];
         askForSignatairesEmails(signerIds);
       });
