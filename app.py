@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 import io
 from PIL import Image
 from reportlab.lib.utils import ImageReader
-import shutil  # Gestion des copies de fichiers
 
 load_dotenv()
 
@@ -161,7 +160,6 @@ def save_template():
             field_clean['value'] = field['value']
         cleaned_fields.append(field_clean)
     path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
-    # IMPORTANT : on enregistre le nom du PDF VIERGE (jamais celui d'une session déjà signée)
     with open(path, 'w') as f:
         json.dump({'pdf': data['pdf'], 'fields': cleaned_fields}, f)
     return jsonify({'status': 'saved', 'pdf': data['pdf'], 'fields': cleaned_fields})
@@ -205,13 +203,9 @@ def define_fields():
                 field['w'] = 15
             else:
                 field['w'] = 120
-    # ---- Correction : copie du PDF vierge pour chaque session ----
-    pdf_base_path = os.path.join(UPLOAD_FOLDER, data['pdf'])  # PDF de base (vierge)
-    session_pdf_name = f"session_{uuid.uuid4()}.pdf"
-    session_pdf_path = os.path.join(UPLOAD_FOLDER, session_pdf_name)
-    shutil.copy(pdf_base_path, session_pdf_path)  # On copie le PDF vierge pour la session
+    pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
     session_data = {
-        'pdf': session_pdf_name,  # On travaille sur la copie
+        'pdf': data['pdf'],
         'fields': fields,
         'email_message': message,
         'nom_demande': nom_demande,
@@ -244,15 +238,9 @@ def sign(session_id, step):
             s = {'id': f['signer_id'], 'email': f['email']}
             if s not in signers:
                 signers.append(s)
-    # Correction : tous les statictext + SEULEMENT les champs du step courant pour le reste
-    fields = [f for f in session_data['fields'] 
-                if (f.get('step', 0) == step and f.get('type') != 'statictext') 
-                   or f.get('type') == 'statictext']
-    currentSignerId = None
-    for f in fields:
-        if f.get('step', 0) == step and 'signer_id' in f:
-            currentSignerId = f['signer_id']
-            break
+    # MODIFICATION : inclure tous les statictext pour tous les signataires
+    fields = [f for f in session_data['fields'] if (f.get('step', 0) == step or f.get('type') == 'statictext')]
+    currentSignerId = fields[0]['signer_id'] if fields and 'signer_id' in fields[0] else None
     return render_template(
         'sign.html',
         pdf=session_data['pdf'],
