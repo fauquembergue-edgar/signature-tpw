@@ -153,9 +153,7 @@ def save_template():
         return jsonify({'error': 'Nom de template requis'}), 400
     cleaned_fields = []
     for field in data['fields']:
-        # On ne garde que l'essentiel pour le template
-        field_clean = {k: v for k, v in field.items() if k not in ['email', 'value', 'signed']}
-        # Pour statictext, on garde value si elle existe
+        field_clean = {k: v for k, v in field.items() if k in ['type', 'x', 'y', 'signer_id']}
         if field.get('type') == 'statictext' and 'value' in field:
             field_clean['value'] = field['value']
         cleaned_fields.append(field_clean)
@@ -181,7 +179,6 @@ def define_fields():
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
     fields = data['fields']
-    # Vérifie présence email pour tous les champs à signer
     for field in fields:
         if field.get('type') != 'statictext' and not field.get('email'):
             return jsonify({'error': 'Email manquant pour un signataire.'}), 400
@@ -203,9 +200,14 @@ def define_fields():
                 field['w'] = 15
             else:
                 field['w'] = 120
-    pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
+    orig_pdf_filename = data['pdf']
+    orig_pdf_path = os.path.join(UPLOAD_FOLDER, orig_pdf_filename)
+    session_pdf_filename = f"{session_id}_{orig_pdf_filename}"
+    session_pdf_path = os.path.join(SESSION_FOLDER, session_pdf_filename)
+    with open(orig_pdf_path, "rb") as src, open(session_pdf_path, "wb") as dst:
+        dst.write(src.read())
     session_data = {
-        'pdf': data['pdf'],
+        'pdf': session_pdf_filename,
         'fields': fields,
         'email_message': message,
         'nom_demande': nom_demande,
@@ -214,16 +216,7 @@ def define_fields():
     session_file_path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
     with open(session_file_path, 'w') as f:
         json.dump(session_data, f)
-    signable_fields = [f for f in fields if f.get('type') not in ('statictext',)]
-    if signable_fields:
-        send_email(session_id, step=0, message_final=None)
-        return render_template("notified.html", session_id=session_id)
-    else:
-        return render_template(
-            "index.html",
-            templates=[f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')],
-            sessions={}
-        )
+    return "Session lancée ! <a href='/'>Retour</a>"
 
 @app.route('/sign/<session_id>/<int:step>')
 def sign(session_id, step):
@@ -261,7 +254,7 @@ def fill_field():
     field = session_data['fields'][data['field_index']]
     field['value'] = data['value']
     field['signed'] = True
-    pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+    pdf_path = os.path.join(SESSION_FOLDER, session_data['pdf'])
     page_num = field.get('page', 0)
     x = float(field.get('x', 0))
     y = float(field.get('y', 0))
@@ -271,7 +264,7 @@ def fill_field():
     offset_y = float(field.get('offset_y', 0))
     if field['type'] == 'signature':
         new_pdf_name = f"signed_{uuid.uuid4()}.pdf"
-        new_pdf_path = os.path.join(UPLOAD_FOLDER, new_pdf_name)
+        new_pdf_path = os.path.join(SESSION_FOLDER, new_pdf_name)
         apply_signature(pdf_path, field['value'], new_pdf_path, x, y, w, h, page_num, offset_x, offset_y)
         session_data['pdf'] = new_pdf_name
     elif field['type'] == 'checkbox':
@@ -305,7 +298,7 @@ def finalise_signature():
         send_email(data['session_id'], next_step, message_final=session_data.get('message_final'))
         session_data['message_final'] = ""
     else:
-        pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
+        pdf_path = os.path.join(SESSION_FOLDER, session_data['pdf'])
         apply_static_text_fields(pdf_path, all_fields, output_path=pdf_path)
         send_pdf_to_all(session_data)
     with open(session_path, 'w') as f:
@@ -358,7 +351,7 @@ def send_email(session_id, step, message_final=None):
 
 def send_pdf_to_all(session_data):
     pdf_name = session_data.get('pdf')
-    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_name)
+    pdf_path = os.path.join(SESSION_FOLDER, pdf_name)
     if not os.path.isfile(pdf_path):
         return
     with open(pdf_path, 'rb') as f:
