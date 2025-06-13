@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import io
 from PIL import Image
 from reportlab.lib.utils import ImageReader
-import shutil  # Ajout pour la gestion des copies de fichiers
+import shutil  # Gestion des copies de fichiers
 
 load_dotenv()
 
@@ -205,7 +205,7 @@ def define_fields():
                 field['w'] = 15
             else:
                 field['w'] = 120
-    # ---- CORRECTION ICI ----
+    # ---- Correction : copie du PDF vierge pour chaque session ----
     pdf_base_path = os.path.join(UPLOAD_FOLDER, data['pdf'])  # PDF de base (vierge)
     session_pdf_name = f"session_{uuid.uuid4()}.pdf"
     session_pdf_path = os.path.join(UPLOAD_FOLDER, session_pdf_name)
@@ -244,8 +244,15 @@ def sign(session_id, step):
             s = {'id': f['signer_id'], 'email': f['email']}
             if s not in signers:
                 signers.append(s)
-    fields = [f for f in session_data['fields'] if f.get('step', 0) == step]
-    currentSignerId = fields[0]['signer_id'] if fields and 'signer_id' in fields[0] else None
+    # Correction : tous les statictext + SEULEMENT les champs du step courant pour le reste
+    fields = [f for f in session_data['fields'] 
+                if (f.get('step', 0) == step and f.get('type') != 'statictext') 
+                   or f.get('type') == 'statictext']
+    currentSignerId = None
+    for f in fields:
+        if f.get('step', 0) == step and 'signer_id' in f:
+            currentSignerId = f['signer_id']
+            break
     return render_template(
         'sign.html',
         pdf=session_data['pdf'],
