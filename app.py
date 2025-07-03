@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import io
 from PIL import Image
 from reportlab.lib.utils import ImageReader
-from shutil import copyfile  # Pour la copie de fichiers
+from shutil import copyfile
 
 load_dotenv()
 
@@ -20,11 +20,37 @@ UPLOAD_FOLDER = 'uploads'
 SESSION_FOLDER = 'sessions'
 TEMPLATES_FOLDER = 'templates_data'
 LOG_FOLDER = 'logs'
+SIGNERS_FILE = 'signers.json'
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(SESSION_FOLDER, exist_ok=True)
 os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
 os.makedirs(LOG_FOLDER, exist_ok=True)
+
+# Gestion emails enregistrés
+def load_signers():
+    if not os.path.exists(SIGNERS_FILE):
+        return []
+    with open(SIGNERS_FILE) as f:
+        return json.load(f)
+
+def save_signers(signers):
+    with open(SIGNERS_FILE, 'w') as f:
+        json.dump(list(sorted(set(signers))), f)
+
+def add_signer(email):
+    email = email.lower().strip()
+    if not email:
+        return
+    signers = set(load_signers())
+    signers.add(email)
+    save_signers(signers)
+
+def remove_signer(email):
+    email = email.lower().strip()
+    signers = set(load_signers())
+    signers.discard(email)
+    save_signers(signers)
 
 def get_pdf_page_size(pdf_path, page_num=0):
     reader = PdfReader(pdf_path)
@@ -132,7 +158,8 @@ def index():
             except Exception as e:
                 print(f"[ERROR] Session {filename} illisible: {e}")
     templates = [f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')]
-    return render_template("index.html", templates=templates, sessions=sessions)
+    signers = load_signers()
+    return render_template("index.html", templates=templates, sessions=sessions, signers=signers)
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -154,9 +181,7 @@ def save_template():
         return jsonify({'error': 'Nom de template requis'}), 400
     cleaned_fields = []
     for field in data['fields']:
-        # On ne garde que l'essentiel pour le template
         field_clean = {k: v for k, v in field.items() if k not in ['email', 'value', 'signed']}
-        # Pour statictext, on garde value si elle existe
         if field.get('type') == 'statictext' and 'value' in field:
             field_clean['value'] = field['value']
         cleaned_fields.append(field_clean)
@@ -183,7 +208,11 @@ def define_fields():
     session_id = str(uuid.uuid4())
     fields = data['fields']
 
-    # --- COPIE PHYSIQUE DU PDF POUR SESSION INDEPENDANTE ---
+    # Ajout des nouveaux emails dans signers.json
+    for field in fields:
+        if field.get('type') != 'statictext' and field.get('email'):
+            add_signer(field['email'])
+
     original_pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
     if os.path.isfile(original_pdf_path):
         session_pdf_name = f"{uuid.uuid4()}_session.pdf"
@@ -192,7 +221,6 @@ def define_fields():
         pdf_filename_for_session = session_pdf_name
     else:
         pdf_filename_for_session = data['pdf']
-    # -------------------------------------------------------
 
     for field in fields:
         if field.get('type') != 'statictext' and not field.get('email'):
@@ -236,6 +264,48 @@ def define_fields():
             templates=[f.replace('.json', '') for f in os.listdir(TEMPLATES_FOLDER) if f.endswith('.json')],
             sessions={}
         )
+
+@app.route('/delete-template', methods=['POST'])
+def delete_template():
+    data = request.get_json()
+    name = data.get('name')
+    path = os.path.join(TEMPLATES_FOLDER, f"{name}.json")
+    if os.path.exists(path):
+        os.remove(path)
+        return jsonify({'status': 'deleted'})
+    else:
+        return jsonify({'status': 'not_found'}), 404
+
+@app.route('/delete-session', methods=['POST'])
+def delete_session():
+    data = request.get_json()
+    session_id = data.get('session_id')
+    path = os.path.join(SESSION_FOLDER, f"{session_id}.json")
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                session_data = json.load(f)
+            pdf_file = session_data.get('pdf', '')
+            pdf_path = os.path.join(UPLOAD_FOLDER, pdf_file)
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except Exception:
+            pass
+        os.remove(path)
+        return jsonify({'status': 'deleted'})
+    else:
+        return jsonify({'status': 'not_found'}), 404
+
+@app.route('/delete-signer', methods=['POST'])
+def delete_signer():
+    data = request.get_json()
+    email = data.get('email')
+    remove_signer(email)
+    return jsonify({'status': 'deleted'})
+
+@app.route('/get-signers')
+def get_signers():
+    return jsonify(load_signers())
 
 @app.route('/sign/<session_id>/<int:step>')
 def sign(session_id, step):
