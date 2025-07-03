@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import io
 from PIL import Image
 from reportlab.lib.utils import ImageReader
+from shutil import copyfile  # Ajouté pour la copie de fichiers
 
 load_dotenv()
 
@@ -181,7 +182,18 @@ def define_fields():
     nom_demande = request.form.get('nom_demande', '')
     session_id = str(uuid.uuid4())
     fields = data['fields']
-    # Vérifie présence email pour tous les champs à signer
+
+    # --- DEBUT AJOUT : Gérer la copie physique du PDF s'il vient d'un template ---
+    original_pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
+    if os.path.isfile(original_pdf_path):
+        session_pdf_name = f"{uuid.uuid4()}_session.pdf"
+        session_pdf_path = os.path.join(UPLOAD_FOLDER, session_pdf_name)
+        copyfile(original_pdf_path, session_pdf_path)
+        pdf_filename_for_session = session_pdf_name
+    else:
+        pdf_filename_for_session = data['pdf']
+    # --- FIN AJOUT ---
+
     for field in fields:
         if field.get('type') != 'statictext' and not field.get('email'):
             return jsonify({'error': 'Email manquant pour un signataire.'}), 400
@@ -203,9 +215,9 @@ def define_fields():
                 field['w'] = 15
             else:
                 field['w'] = 120
-    pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
+    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_filename_for_session)
     session_data = {
-        'pdf': data['pdf'],
+        'pdf': pdf_filename_for_session,
         'fields': fields,
         'email_message': message,
         'nom_demande': nom_demande,
