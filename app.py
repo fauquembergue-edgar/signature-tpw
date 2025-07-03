@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import io
 from PIL import Image
 from reportlab.lib.utils import ImageReader
-from shutil import copyfile  # Ajouté pour la copie de fichiers
+from shutil import copyfile  # Pour la copie de fichiers
 
 load_dotenv()
 
@@ -183,7 +183,7 @@ def define_fields():
     session_id = str(uuid.uuid4())
     fields = data['fields']
 
-    # --- DEBUT AJOUT : Gérer la copie physique du PDF s'il vient d'un template ---
+    # --- COPIE PHYSIQUE DU PDF POUR SESSION INDEPENDANTE ---
     original_pdf_path = os.path.join(UPLOAD_FOLDER, data['pdf'])
     if os.path.isfile(original_pdf_path):
         session_pdf_name = f"{uuid.uuid4()}_session.pdf"
@@ -192,7 +192,7 @@ def define_fields():
         pdf_filename_for_session = session_pdf_name
     else:
         pdf_filename_for_session = data['pdf']
-    # --- FIN AJOUT ---
+    # -------------------------------------------------------
 
     for field in fields:
         if field.get('type') != 'statictext' and not field.get('email'):
@@ -250,7 +250,7 @@ def sign(session_id, step):
             s = {'id': f['signer_id'], 'email': f['email']}
             if s not in signers:
                 signers.append(s)
-    # MODIFICATION : inclure tous les statictext pour tous les signataires
+    # Inclure tous les statictext pour tous les signataires
     fields = [f for f in session_data['fields'] if (f.get('step', 0) == step or f.get('type') == 'statictext')]
     currentSignerId = fields[0]['signer_id'] if fields and 'signer_id' in fields[0] else None
     return render_template(
@@ -376,14 +376,23 @@ def send_pdf_to_all(session_data):
         content = f.read()
     sent = set()
     message_final = session_data.get('message_final', '')
+    sender_email = os.getenv('SMTP_USER')
+    recipients = set()
+
+    # Ajoute tous les destinataires signataires
     for fld in session_data['fields']:
         recipient = fld.get('email')
-        if not recipient or recipient in sent:
-            continue
-        sent.add(recipient)
+        if recipient:
+            recipients.add(recipient)
+
+    # Ajoute l'adresse d'envoi si pas déjà présente
+    if sender_email and sender_email not in recipients:
+        recipients.add(sender_email)
+
+    for recipient in recipients:
         msg = EmailMessage()
         msg['Subject'] = 'Document signé final'
-        msg['From'] = os.getenv('SMTP_USER')
+        msg['From'] = sender_email
         msg['To'] = recipient
         body = 'Voici le PDF final signé.'
         if message_final:
