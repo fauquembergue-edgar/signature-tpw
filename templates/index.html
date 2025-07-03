@@ -654,44 +654,63 @@ function loadTemplate() {
     });
 }
 
+// Nouvelle version de askForSignatairesEmails avec menu déroulant emails enregistrés
 function askForSignatairesEmails(signerIds) {
   signerIds = [...new Set(signerIds)];
   if (signerIds.length === 0) return;
   const modalBg = document.getElementById('modal-emails-bg');
   const modalContent = document.getElementById('modal-emails-content');
-  let html = `<h4>Renseignez les emails des signataires :</h4>`;
-  signerIds.forEach((id, i) => {
-    html += `<label>Signataire ${parseInt(i)+1} (étape ${id+1}) : <input type="email" id="email-sign-${id}" required></label>`;
+  fetch('/get-signers').then(res => res.json()).then(signers => {
+    let html = `<h4>Renseignez les emails des signataires :</h4>`;
+    signerIds.forEach((id, i) => {
+      html += `
+        <label>
+          Signataire ${parseInt(i)+1} (étape ${id+1}) :
+          <input type="email" id="email-sign-${id}" required style="width:60%;">
+          <select id="select-email-sign-${id}" style="width:33%;margin-left:4px;">
+            <option value="">-- Emails enregistrés --</option>
+            ${signers.map(email => `<option value="${email}">${email}</option>`).join('')}
+          </select>
+          <button type="button" class="btn" style="padding:2px 8px;font-size:0.95em;" onclick="useSavedEmail(${id})">Utiliser</button>
+        </label>`;
+    });
+    html += `<button class="btn btn-accent" id="validate-emails">Valider</button>`;
+    modalContent.innerHTML = html;
+    modalBg.style.display = "flex";
+
+    document.getElementById('validate-emails').onclick = function() {
+      let ok = true;
+      let mapping = {};
+      signerIds.forEach(id => {
+        const val = document.getElementById('email-sign-'+id).value.trim();
+        if (!val) ok = false;
+        mapping[id] = val;
+      });
+      if (!ok) return alert("Veuillez renseigner tous les emails.");
+      fields.forEach(f => {
+        if (f.type !== "statictext" && mapping[f.signer_id] !== undefined) {
+          f.email = mapping[f.signer_id];
+        }
+      });
+      signerIds.forEach((id, idx) => {
+        let sig = signataires.find(s => s.id === id);
+        if (sig) {
+          sig.email = mapping[id];
+        } else {
+          signataires.push({ id: id, email: mapping[id] });
+        }
+      });
+      modalBg.style.display = "none";
+      alert("Emails enregistrés pour les signataires.");
+    }
   });
-  html += `<button class="btn btn-accent" id="validate-emails">Valider</button>`;
-  modalContent.innerHTML = html;
-  modalBg.style.display = "flex";
-  document.getElementById('validate-emails').onclick = function() {
-    let ok = true;
-    let mapping = {};
-    signerIds.forEach(id => {
-      const val = document.getElementById('email-sign-'+id).value.trim();
-      if (!val) ok = false;
-      mapping[id] = val;
-    });
-    if (!ok) return alert("Veuillez renseigner tous les emails.");
-    fields.forEach(f => {
-      if (f.type !== "statictext" && mapping[f.signer_id] !== undefined) {
-        f.email = mapping[f.signer_id];
-      }
-    });
-    signerIds.forEach((id, idx) => {
-      let sig = signataires.find(s => s.id === id);
-      if (sig) {
-        sig.email = mapping[id];
-      } else {
-        signataires.push({ id: id, email: mapping[id] });
-      }
-    });
-    modalBg.style.display = "none";
-    alert("Emails enregistrés pour les signataires.");
-  }
 }
+function useSavedEmail(id) {
+  const sel = document.getElementById('select-email-sign-' + id);
+  const input = document.getElementById('email-sign-' + id);
+  if (sel && input && sel.value) input.value = sel.value;
+}
+window.useSavedEmail = useSavedEmail;
 
 function enableDrag(element, id) {
   let offsetX, offsetY;
