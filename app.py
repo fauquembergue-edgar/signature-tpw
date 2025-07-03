@@ -301,6 +301,11 @@ def finalise_signature():
     session_path = os.path.join(SESSION_FOLDER, f"{data['session_id']}.json")
     with open(session_path) as f:
         session_data = json.load(f)
+
+    # Protection contre double envoi du PDF final
+    if session_data.get('final_pdf_sent'):
+        return jsonify({'status': 'finalised_already_sent'})
+
     if data.get('message_final') is not None:
         session_data['message_final'] = data['message_final']
     all_fields = session_data['fields']
@@ -319,6 +324,7 @@ def finalise_signature():
         pdf_path = os.path.join(UPLOAD_FOLDER, session_data['pdf'])
         apply_static_text_fields(pdf_path, all_fields, output_path=pdf_path)
         send_pdf_to_all(session_data)
+        session_data['final_pdf_sent'] = True  # On note que le PDF a été envoyé
     with open(session_path, 'w') as f:
         json.dump(session_data, f)
     return jsonify({'status': 'finalised'})
@@ -374,7 +380,6 @@ def send_pdf_to_all(session_data):
         return
     with open(pdf_path, 'rb') as f:
         content = f.read()
-    sent = set()
     message_final = session_data.get('message_final', '')
     sender_email = os.getenv('SMTP_USER')
     recipients = set()
@@ -383,11 +388,13 @@ def send_pdf_to_all(session_data):
     for fld in session_data['fields']:
         recipient = fld.get('email')
         if recipient:
-            recipients.add(recipient)
+            recipients.add(recipient.lower().strip())  # normalise
 
     # Ajoute l'adresse d'envoi si pas déjà présente
-    if sender_email and sender_email not in recipients:
-        recipients.add(sender_email)
+    if sender_email and sender_email.lower().strip() not in recipients:
+        recipients.add(sender_email.lower().strip())
+
+    print("[DEBUG] Destinataires PDF final:", recipients)
 
     for recipient in recipients:
         msg = EmailMessage()
