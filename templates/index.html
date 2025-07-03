@@ -336,11 +336,33 @@
         {% endfor %}
       </select>
       <button class="btn" onclick="loadTemplate()">📂 Charger</button>
+      <ul id="template-list" style="margin:0;padding:0;">
+        {% for t in templates %}
+          <li style="display:inline-block;margin:0 6px 0 0;">
+            <button class="btn btn-accent" onclick="deleteTemplatePrompt('{{ t }}')" style="padding:2px 10px;font-size:0.95em;">🗑 {{ t }}</button>
+          </li>
+        {% endfor %}
+      </ul>
     </div>
     <div class="form-section">
       <label>Ajouter des signataires :</label>
       <div id="signataires-list"></div>
       <input type="email" id="new-email" placeholder="Email du signataire">
+      <select id="signer-email-select" style="margin:7px 0 0 0;">
+        <option value="">-- Emails enregistrés --</option>
+        {% for email in signers %}
+          <option value="{{ email }}">{{ email }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn" onclick="selectEmailFromList()">Utiliser</button>
+      <ul id="signer-list">
+        {% for email in signers %}
+          <li>
+            {{ email }}
+            <button class="btn btn-accent" style="padding:1px 7px;font-size:0.95em;" onclick="deleteSignerPrompt('{{ email }}')">🗑</button>
+          </li>
+        {% endfor %}
+      </ul>
       <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
     </div>
     <div class="form-section" id="champ-section" style="margin-bottom: 0;">
@@ -367,11 +389,15 @@
       <tr>
         <th>Demande</th>
         <th>Statut</th>
+        <th>Action</th>
       </tr>
       {% for sid, s in sessions.items() %}
       <tr>
         <td>{{ s.name or 'Sans nom' }}</td>
         <td>{% if s.done %}✅ Terminé{% else %}⏳ En attente{% endif %}</td>
+        <td>
+          <button class="btn btn-accent" onclick="deleteSessionPrompt('{{ sid }}')" style="padding:2px 10px;font-size:0.95em;">🗑</button>
+        </td>
       </tr>
       {% endfor %}
     </table>
@@ -381,6 +407,59 @@
   <div class="modal-emails-content" id="modal-emails-content"></div>
 </div>
 <script>
+function deleteTemplatePrompt(name) {
+  if (confirm('Supprimer ce template ?')) {
+    fetch('/delete-template', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name})
+    }).then(r=>r.json()).then(data=>{
+      if(data.status === 'deleted') location.reload();
+    });
+  }
+}
+function deleteSignerPrompt(email) {
+  if (confirm('Supprimer cet email ?')) {
+    fetch('/delete-signer', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email})
+    }).then(r=>r.json()).then(data=>{
+      if(data.status === 'deleted') location.reload();
+    });
+  }
+}
+function deleteSessionPrompt(session_id) {
+  if (confirm('Supprimer cette ligne de suivi ?')) {
+    fetch('/delete-session', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({session_id})
+    }).then(r=>r.json()).then(data=>{
+      if(data.status === 'deleted') location.reload();
+    });
+  }
+}
+function selectEmailFromList() {
+  const select = document.getElementById('signer-email-select');
+  const val = select.value;
+  if (val) document.getElementById('new-email').value = val;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  fetch('/get-signers').then(r=>r.json()).then(signers=>{
+    const select = document.getElementById('signer-email-select');
+    if (select) {
+      for (const email of signers) {
+        if (![...select.options].map(o=>o.value).includes(email)) {
+          const opt = document.createElement('option');
+          opt.value = email; opt.textContent = email;
+          select.appendChild(opt);
+        }
+      }
+    }
+  });
+});
+
 let fields = [];
 let fieldId = 0;
 let scale = 1.5;
@@ -388,7 +467,6 @@ let currentPdf = null;
 let currentType = null;
 let signataires = [];
 const COLORS = ["#27348b", "#e30613", "#33C964", "#D633FF", "#FFC300", "#33D6FF"];
-
 const canvas = document.getElementById('pdf-canvas');
 const container = document.getElementById('pdf-container');
 
@@ -470,7 +548,6 @@ canvas.addEventListener('click', function(event) {
     field = { id, type: currentType, signer_id: signerId, email: email, x, y, signed: false };
   }
   fields.push(field);
-
   addFieldBoxToPDF(field);
 });
 
@@ -504,7 +581,6 @@ function addFieldBoxToPDF(field) {
 }
 
 function redrawFields() {
-  // Supprime toutes les boxes existantes (hors canvas)
   [...container.querySelectorAll('.field-box')].forEach(div => div.remove());
   fields.forEach(field => addFieldBoxToPDF(field));
 }
@@ -530,7 +606,6 @@ function saveTemplate() {
   if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
   const templateFields = fields.map(f => {
     if (f.type === "statictext") {
-      // On garde value uniquement pour affichage mais elle n'est JAMAIS incrustée dans le PDF du template
       return { type: f.type, x: f.x, y: f.y, value: f.value };
     } else {
       return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id };
@@ -560,9 +635,7 @@ function loadTemplate() {
       fieldId = 0;
       currentPdf = data.pdf;
       container.style.display = 'block';
-      // Recharge le PDF puis affiche les zones après rendu
       loadPDF('/uploads/' + currentPdf, () => {
-        // Supprime toutes les field-box (si jamais)
         [...container.querySelectorAll('.field-box')].forEach(div => div.remove());
         data.fields.forEach(field => {
           const id = fieldId++;
@@ -575,7 +648,6 @@ function loadTemplate() {
           fields.push(newField);
           addFieldBoxToPDF(newField);
         });
-        // Demande les emails pour chaque signer_id présent
         const signerIds = [...new Set(fields.filter(f => f.type !== "statictext").map(f => f.signer_id))];
         askForSignatairesEmails(signerIds);
       });
@@ -594,7 +666,6 @@ function askForSignatairesEmails(signerIds) {
   html += `<button class="btn btn-accent" id="validate-emails">Valider</button>`;
   modalContent.innerHTML = html;
   modalBg.style.display = "flex";
-
   document.getElementById('validate-emails').onclick = function() {
     let ok = true;
     let mapping = {};
