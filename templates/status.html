@@ -1,48 +1,80 @@
-
 <!DOCTYPE html>
-<html lang="fr">
+<!-- Déclaration d’un document HTML5 -->
+<html lang="fr"> <!-- Langue du document : français -->
+
 <head>
-  <meta charset="UTF-8">
-  <title>Suivi des signatures</title>
+  <meta charset="UTF-8"> <!-- Encodage des caractères en UTF-8 -->
+  <title>Suivi des signatures</title> <!-- Titre affiché dans l’onglet du navigateur -->
+
+  <!-- Styles CSS pour la mise en forme de la page -->
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background-color: #f4f4f4;
-      padding: 40px;
+      font-family: Arial, sans-serif; /* Police lisible et standard */
+      background-color: #f4f4f4;      /* Fond gris clair */
+      padding: 40px;                  /* Marge intérieure du corps de page */
     }
+
     table {
-      border-collapse: collapse;
-      width: 100%;
-      background-color: white;
+      border-collapse: collapse;     /* Supprime les espaces entre les bordures */
+      width: 100%;                   /* Le tableau prend toute la largeur disponible */
+      background-color: white;       /* Fond blanc pour les données */
     }
+
     th, td {
-      padding: 12px 16px;
-      border: 1px solid #ccc;
+      padding: 12px 16px;            /* Espacement dans les cellules */
+      border: 1px solid #ccc;        /* Bordure grise claire autour des cellules */
     }
+
     th {
-      background-color: #007BFF;
-      color: white;
-      text-align: left;
+      background-color: #007BFF;     /* Bleu pour l’en-tête du tableau */
+      color: white;                  /* Texte blanc dans les en-têtes */
+      text-align: left;              /* Alignement à gauche */
     }
+
     tr:nth-child(even) {
-      background-color: #f9f9f9;
+      background-color: #f9f9f9;     /* Couleur différente pour une ligne sur deux (zébrage) */
     }
   </style>
 </head>
+
 <body>
 
+  <!-- Titre principal de la page -->
   <h1>Statut de la session de signature</h1>
-  <p>Liste des champs, emails assignes et leur etat :</p>
 
-  <!-- Tableau de suivi -->
+  <!-- Paragraphe explicatif -->
+  <p>Liste des champs, emails assignés et leur état :</p>
+
+  <!-- Début du tableau HTML pour afficher le suivi -->
   <table>
-    <tr><th>Email</th><th>Type</th><th>Label</th><th>Statut</th></tr>
+    <!-- Ligne d'en-tête avec 4 colonnes -->
+    <tr>
+      <th>Email</th>
+      <th>Type</th>
+      <th>Label</th>
+      <th>Statut</th>
+    </tr>
+
+    <!-- Boucle Jinja pour parcourir chaque champ de la session -->
     {% for f in fields %}
       <tr>
+        <!-- Affiche l'email du signataire -->
         <td>{{ f.email }}</td>
+
+        <!-- Affiche le type de champ (texte, signature, etc.) -->
         <td>{{ f.type }}</td>
+
+        <!-- Affiche le label (si défini) ou une chaîne vide sinon -->
         <td>{{ f.label or '' }}</td>
-        <td>{% if f.signed %}✅ Signe{% else %}❌ En attente{% endif %}</td>
+
+        <!-- Affiche un statut selon si le champ est signé ou non -->
+        <td>
+          {% if f.signed %}
+            ✅ Signe
+          {% else %}
+            ❌ En attente
+          {% endif %}
+        </td>
       </tr>
     {% endfor %}
   </table>
