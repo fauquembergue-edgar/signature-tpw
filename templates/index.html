@@ -1,11 +1,20 @@
-<!DOCTYPE html>
-<html lang="fr">
+    <!DOCTYPE html>
+<!-- Déclaration HTML5 -->
+<html lang="fr"> <!-- Le contenu du site est en français -->
+
 <head>
-  <meta charset="UTF-8">
-  <title>TPW Nord Concassage · Formulaires PDF à signer</title>
+  <meta charset="UTF-8"> <!-- Encodage des caractères UTF-8 -->
+  <title>TPW Nord Concassage · Formulaires PDF à signer</title> <!-- Titre affiché dans l'onglet -->
+
+  <!-- Import de PDF.js pour afficher un PDF dans un canvas HTML -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+
+  <!-- Import des polices Google Fonts pour une meilleure esthétique -->
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Styles globaux -->
   <style>
+    /* Variables CSS pour définir les couleurs personnalisées utilisées partout */
     :root {
       --tpw-bleu: #27348b;
       --tpw-rouge: #e30613;
@@ -15,6 +24,8 @@
       --tpw-btn-hover: #152075;
       --tpw-accent: #e30613;
     }
+
+    /* Style global du body : police, couleur de fond, disposition en colonne */
     body {
       font-family: 'Roboto', Arial, sans-serif;
       background: var(--tpw-gris);
@@ -25,20 +36,26 @@
       display: flex;
       flex-direction: column;
     }
+
+    /* Style de l'en-tête (bandeau du haut) */
     header {
       background: white;
       color: var(--tpw-bleu-fonce);
       padding: 18px 0 10px 0;
       text-align: center;
-      border-bottom: 4px solid var(--tpw-rouge);
+      border-bottom: 4px solid var(--tpw-rouge); /* ligne rouge en bas */
       box-shadow: 0 2px 16px #0001;
       letter-spacing: 1px;
     }
+
+    /* Logo dans l'en-tête */
     header img {
       height: 62px;
       vertical-align: middle;
       margin-bottom: 4px;
     }
+
+    /* Titre principal dans l'en-tête */
     header h1 {
       display: block;
       margin: 12px 0 0 0;
@@ -49,6 +66,8 @@
       color: var(--tpw-bleu-fonce);
       text-shadow: 0 2px 8px #0002;
     }
+
+    /* Sous-titre en rouge */
     header .sub {
       font-size: 1.09em;
       margin-top: 0;
@@ -57,15 +76,19 @@
       font-weight: 500;
       font-family: 'Montserrat', Arial, sans-serif;
     }
+
+    /* Conteneur principal de la page (zone centrale) */
     main {
-      display: flex;
+      display: flex; /* disposition en colonnes */
       flex: 1;
-      padding: 38px 4vw 38px 4vw;
+      padding: 38px 4vw 38px 4vw; /* marge intérieure avec unités flexibles */
       max-width: 1400px;
       margin: 0 auto;
-      gap: 36px;
+      gap: 36px; /* espace entre la colonne gauche et droite */
       width: 100%;
     }
+
+    /* Colonne gauche (formulaire principal) */
     #left {
       flex: 3;
       background: white;
@@ -74,8 +97,10 @@
       padding: 38px 32px 32px 32px;
       position: relative;
       margin-bottom: 28px;
-      border-top: 7px solid var(--tpw-accent);
+      border-top: 7px solid var(--tpw-accent); /* bord supérieur rouge */
     }
+
+    /* Colonne droite (suivi des signatures) */
     #right {
       flex: 1.1;
       min-width: 320px;
@@ -84,9 +109,11 @@
       box-shadow: 0 4px 24px #232a3310;
       padding: 24px 20px 18px 20px;
       max-height: 90vh;
-      overflow-y: auto;
-      border-top: 7px solid var(--tpw-bleu);
+      overflow-y: auto; /* scroll si trop de contenu */
+      border-top: 7px solid var(--tpw-bleu); /* bord supérieur bleu */
     }
+
+    /* Titres secondaires (comme "Créer un formulaire") */
     h2 {
       font-family: 'Montserrat', Arial, sans-serif;
       font-size: 1.38rem;
@@ -96,6 +123,7 @@
       font-weight: 700;
       letter-spacing: 1px;
     }
+    /* Bouton principal générique utilisé dans l’interface */
     .btn {
       background: var(--tpw-btn);
       color: #fff !important;
@@ -111,16 +139,23 @@
       box-shadow: 0 1px 3px #0002;
       outline: none !important;
     }
-    .btn:active, .btn:hover {
+
+    /* Style des boutons au survol ou clic */
+    .btn:active,
+    .btn:hover {
       background: var(--tpw-btn-hover);
       color: #fff !important;
     }
+
+    /* Variante rouge du bouton, utilisée pour les actions importantes */
     .btn-accent {
       background: var(--tpw-accent) !important;
       color: #fff !important;
       font-weight: 700;
       border: none;
     }
+
+    /* Bloc de formulaire (groupe de champs) */
     .form-section {
       margin-bottom: 26px;
       background: var(--tpw-gris);
@@ -128,6 +163,8 @@
       padding: 18px 16px 8px 16px;
       box-shadow: 0 2px 8px #27348b09;
     }
+
+    /* Style des labels dans les champs de formulaire */
     .form-section label {
       font-weight: 500;
       color: var(--tpw-bleu);
@@ -135,7 +172,11 @@
       display: block;
       font-size: 1.05em;
     }
-    .form-section input, .form-section select, .form-section textarea {
+
+    /* Style général des champs de saisie (input, select, textarea) */
+    .form-section input,
+    .form-section select,
+    .form-section textarea {
       font-size: 1em;
       margin-bottom: 10px;
       width: 100%;
@@ -147,12 +188,16 @@
       box-sizing: border-box;
       color: var(--tpw-bleu-fonce);
     }
+
+    /* Style particulier pour les champs d’import de fichiers */
     .form-section input[type="file"] {
       border: none;
       background: transparent;
       padding-left: 0;
       color: #181c55;
     }
+
+    /* Petits carrés colorés utilisés dans les légendes */
     .legend-box {
       display: inline-block;
       width: 13px;
@@ -161,6 +206,8 @@
       border-radius: 2px;
       vertical-align: middle;
     }
+
+    /* Style visuel pour les zones de texte statique placées sur le PDF */
     .statictext-box {
       border: 2px dashed var(--tpw-bleu) !important;
       background: #e6f0ff !important;
@@ -168,17 +215,21 @@
       font-weight: bold;
       font-size: 15px;
     }
+
+    /* Zone flottante positionnée sur le PDF (champ de texte, signature, case...) */
     .field-box {
       position: absolute;
       background: white;
       padding: 4px;
       font-size: 12px;
-      cursor: move;
+      cursor: move; /* Permet de déplacer le champ */
       z-index: 10;
       border-radius: 6px;
       box-shadow: 0 2px 10px #0001;
       user-select: none;
     }
+
+    /* Bouton pour supprimer un champ placé sur le PDF */
     .remove-btn {
       position: absolute;
       top: -10px;
@@ -194,18 +245,24 @@
       box-shadow: 0 1px 4px #0002;
       z-index: 12;
     }
+
+    /* Conteneur qui affiche le PDF et les champs */
     #pdf-container {
       position: relative;
-      display: none;
+      display: none; /* Affiché uniquement après l'import */
       margin: 28px 0 0 0;
       border-radius: 8px;
       overflow: hidden;
       box-shadow: 0 4px 24px #27348b13;
     }
+
+    /* Le canvas HTML utilisé pour afficher le PDF avec PDF.js */
     canvas {
       border: 1.5px solid #27348b44;
       display: block;
     }
+
+    /* Liste visuelle des signataires et leurs couleurs */
     #signataires-list label {
       margin-right: 7px;
       margin-bottom: 2px;
@@ -219,16 +276,20 @@
       display: inline-block;
       border: 1px solid #ccc;
     }
+
+    /* Tableau HTML pour le suivi des demandes */
     table {
       width: 100%;
       font-size: 13px;
       border-collapse: collapse;
       margin-top: 12px;
-    }
+    }    
     th, td {
       padding: 9px 7px;
       text-align: left;
     }
+
+    /* En-tête du tableau avec fond bleu */
     th {
       background: var(--tpw-bleu);
       color: white;
@@ -236,24 +297,35 @@
       font-weight: 500;
       letter-spacing: 1px;
     }
+
+    /* Lignes du tableau, avec effet de survol */
     tr {
       background: #f6f9fc;
       transition: background .15s;
     }
     tr:hover {
-      background: var(--tpw-accent);
+      background: var(--tpw-accent); /* Survol rouge */
       color: white;
     }
     tr:nth-child(even) {
       background: #e9eef4;
     }
+
+    /* Arrière-plan assombri derrière la pop-up d'email */
     .modal-emails-bg {
       position: fixed;
       z-index: 10000;
-      left: 0; top: 0; width: 100vw; height: 100vh;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
       background: rgba(40,40,55,0.25);
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
+
+    /* Boîte centrale de la modale (pop-up) email */
     .modal-emails-content {
       background: #fff;
       border-radius: 12px;
@@ -263,12 +335,16 @@
       min-width: 220px;
       max-width: 95vw;
     }
+
+    /* Titre de la modale */
     .modal-emails-content h4 {
       margin-top: 0;
       font-family: 'Montserrat', Arial, sans-serif;
       color: #27348b;
       margin-bottom: 18px;
     }
+
+    /* Label dans la modale */
     .modal-emails-content label {
       display: block;
       margin-bottom: 13px;
@@ -276,6 +352,8 @@
       color: #181c55;
       text-align: left;
     }
+
+    /* Champ email dans la modale */
     .modal-emails-content input[type=email] {
       width: 95%;
       margin-top: 4px;
@@ -286,22 +364,45 @@
       border: 1.5px solid #c7c7da;
       background: #f8fafb;
     }
+
+    /* Bouton dans la modale */
     .modal-emails-content .btn {
       margin-top: 12px;
       font-size: 1.11em;
     }
+
+    /* Adaptation responsive : en-dessous de 1100px, empilement vertical */
     @media (max-width: 1100px) {
-      main { flex-direction: column; gap: 0; padding: 24px 0; }
-      #left, #right { max-width: 100vw; border-radius: 0; box-shadow: none; }
-      #left { margin-bottom: 32px; }
+      main {
+        flex-direction: column;
+        gap: 0;
+        padding: 24px 0;
+      }
+      #left,
+      #right {
+        max-width: 100vw;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      #left {
+        margin-bottom: 32px;
+      }
     }
+
+    /* Encore plus petit écran : moins de padding interne */
     @media (max-width: 600px) {
-      main { padding: 0; }
-      #left, #right { padding: 10px; }
+      main {
+        padding: 0;
+      }
+      #left,
+      #right {
+        padding: 10px;
+      }
     }
   </style>
 </head>
 <body>
+<!-- En-tête avec logo, titre de l’entreprise et sous-titre -->
 <header>
   <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAYAAABkZC3zAAABxUlEQVR4nO3bQY6DMBBF0aRwaT5fZj6B4pQ2q9tq8zT4kI/6p+zK1XnQCAAAAAAAAAAAAoJQkqVSCW25p8nS6bqfJ8VUzv9A6mV8r6VwH+W9QX9w4U4x+3tEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEtEfEAAAAAAAAAAAAAAABwH+YHwXyM9BUAAAAASUVORK5CYII=" alt="Logo TPW Nord Concassage">
   <h1>TPW Nord Concassage</h1>
@@ -309,22 +410,35 @@
     Digitalisez vos formulaires et signatures PDF
   </div>
 </header>
+<!-- Zone principale divisée en deux parties : formulaire (gauche) et suivi (droite) -->
 <main>
+
+  <!-- Partie gauche : création et configuration du formulaire PDF -->
   <div id="left">
+
+    <!-- Titre de la section -->
     <h2>Créer un formulaire PDF à signer</h2>
+
+    <!-- Formulaire de chargement du PDF -->
     <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data" class="form-section">
       <label for="pdf">Charger un PDF à annoter</label>
       <input type="file" name="pdf" id="pdf" accept=".pdf" required>
       <input type="submit" value="Charger le PDF" class="btn btn-accent">
     </form>
+
+    <!-- Saisie du nom de la demande -->
     <div class="form-section">
       <label for="nom-demande">Nom de la demande :</label>
       <input type="text" id="nom-demande" placeholder="Nom du processus">
     </div>
+
+    <!-- Message personnalisé à inclure dans l’email -->
     <div class="form-section">
       <label for="email-message">Message email :</label>
       <textarea id="email-message" placeholder="Message à inclure dans l’email…" rows="3" cols="60"></textarea>
     </div>
+
+    <!-- Gestion des templates (sauvegarder, charger, supprimer) -->
     <div class="form-section">
       <label>Templates :</label>
       <input type="text" id="template-name" placeholder="Nom du template">
@@ -344,6 +458,8 @@
         {% endfor %}
       </ul>
     </div>
+
+    <!-- Ajout des signataires + sélection dans la liste des emails enregistrés -->
     <div class="form-section">
       <label>Ajouter des signataires :</label>
       <div id="signataires-list"></div>
@@ -365,6 +481,8 @@
       </ul>
       <button class="btn" onclick="addSignataire()">Ajouter signataire</button>
     </div>
+
+    <!-- Sélection du type de champ à ajouter (texte, signature, case...) -->
     <div class="form-section" id="champ-section" style="margin-bottom: 0;">
       <label>Type de champ à ajouter :</label>
       <button class="btn" onclick="selectType('text')">Zone de texte</button>
@@ -373,9 +491,13 @@
       <button class="btn btn-accent" onclick="selectType('statictext')">Zone texte statique</button>
       <span style="margin-left:8px; color:#888; font-size:0.95em;">(Cliquez sur le PDF pour placer le champ)</span>
     </div>
+
+    <!-- Affichage du PDF avec ses champs à placer -->
     <div id="pdf-container" style="position: relative; display: none;">
       <canvas id="pdf-canvas"></canvas>
     </div>
+
+    <!-- Formulaire de validation finale : envoie tous les champs pour lancer la signature -->
     <form id="assign-fields-form" action="/define-fields" method="post" class="form-section" style="background:transparent;box-shadow:none;">
       <input type="hidden" name="fields_json" id="fields-json">
       <input type="hidden" name="email_message" id="email-message-hidden">
@@ -383,6 +505,8 @@
       <input type="submit" value="📤 Lancer le processus de signature" class="btn btn-accent" style="font-size:1.12em;">
     </form>
   </div>
+
+  <!-- Partie droite : tableau de suivi des signatures (sessions en cours ou terminées) -->
   <div id="right">
     <h2 style="margin-bottom:18px;"><span style="color:var(--tpw-accent);">🧾</span> Suivi des signatures</h2>
     <table>
@@ -403,10 +527,12 @@
     </table>
   </div>
 </main>
+<!-- Modale pour l’affichage dynamique d’emails (par ex. lors d’une erreur ou d’un rappel) -->
 <div id="modal-emails-bg" class="modal-emails-bg" style="display:none;">
   <div class="modal-emails-content" id="modal-emails-content"></div>
 </div>
 <script>
+// Supprime un template enregistré après confirmation
 function deleteTemplatePrompt(name) {
   if (confirm('Supprimer ce template ?')) {
     fetch('/delete-template', {
@@ -414,10 +540,12 @@ function deleteTemplatePrompt(name) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({name})
     }).then(r=>r.json()).then(data=>{
-      if(data.status === 'deleted') location.reload();
+      if(data.status === 'deleted') location.reload();  // Recharge la page si suppression réussie
     });
   }
 }
+
+// Supprime un email enregistré après confirmation
 function deleteSignerPrompt(email) {
   if (confirm('Supprimer cet email ?')) {
     fetch('/delete-signer', {
@@ -425,10 +553,12 @@ function deleteSignerPrompt(email) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({email})
     }).then(r=>r.json()).then(data=>{
-      if(data.status === 'deleted') location.reload();
+      if(data.status === 'deleted') location.reload();  // Recharge la page si suppression réussie
     });
   }
 }
+
+// Supprime une session de signature après confirmation
 function deleteSessionPrompt(session_id) {
   if (confirm('Supprimer cette ligne de suivi ?')) {
     fetch('/delete-session', {
@@ -436,23 +566,29 @@ function deleteSessionPrompt(session_id) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({session_id})
     }).then(r=>r.json()).then(data=>{
-      if(data.status === 'deleted') location.reload();
+      if(data.status === 'deleted') location.reload();  // Recharge la page si suppression réussie
     });
   }
 }
+
+// Récupère l’email sélectionné dans la liste déroulante et le place dans le champ de saisie
 function selectEmailFromList() {
   const select = document.getElementById('signer-email-select');
   const val = select.value;
   if (val) document.getElementById('new-email').value = val;
 }
+
+// Remplit dynamiquement la liste déroulante d’emails enregistrés au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
   fetch('/get-signers').then(r=>r.json()).then(signers=>{
     const select = document.getElementById('signer-email-select');
     if (select) {
       for (const email of signers) {
+        // Ajoute uniquement les emails qui ne sont pas déjà présents dans la liste
         if (![...select.options].map(o=>o.value).includes(email)) {
           const opt = document.createElement('option');
-          opt.value = email; opt.textContent = email;
+          opt.value = email; 
+          opt.textContent = email;
           select.appendChild(opt);
         }
       }
@@ -460,30 +596,36 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-let fields = [];
-let fieldId = 0;
-let scale = 1.5;
-let currentPdf = null;
-let currentType = null;
-let signataires = [];
-const COLORS = ["#27348b", "#e30613", "#33C964", "#D633FF", "#FFC300", "#33D6FF"];
-const canvas = document.getElementById('pdf-canvas');
-const container = document.getElementById('pdf-container');
+// Variables globales liées aux champs, PDF et signataires
+let fields = [];               // Liste des champs placés sur le PDF
+let fieldId = 0;               // ID incrémental unique pour chaque champ
+let scale = 1.5;               // Facteur de zoom du PDF affiché
+let currentPdf = null;         // Nom du fichier PDF en cours
+let currentType = null;        // Type de champ sélectionné par l’utilisateur
+let signataires = [];          // Liste des signataires ajoutés
+const COLORS = [               // Couleurs utilisées pour distinguer les signataires
+  "#27348b", "#e30613", "#33C964", "#D633FF", "#FFC300", "#33D6FF"
+];
+const canvas = document.getElementById('pdf-canvas');        // Référence au canvas d'affichage PDF
+const container = document.getElementById('pdf-container');  // Conteneur du canvas
 
+// Gestion du formulaire d’upload : empêche l’envoi classique et envoie en AJAX
 document.getElementById('upload-form').onsubmit = function(e) {
   e.preventDefault();
   const formData = new FormData(this);
+
   fetch('/upload', { method: 'POST', body: formData })
     .then(res => res.json())
     .then(data => {
-      currentPdf = data.filename;
-      container.style.display = 'block';
+      currentPdf = data.filename;             // Récupère le nom du PDF généré par le serveur
+      container.style.display = 'block';      // Affiche la zone PDF
       loadPDF('/uploads/' + data.filename, () => {
-        redrawFields();
+        redrawFields();                       // Recharge les champs déjà présents s’il y en a
       });
     });
 };
 
+// Charge un PDF dans le canvas et l'affiche avec le bon zoom
 function loadPDF(url, callback) {
   const loadingTask = pdfjsLib.getDocument(url);
   loadingTask.promise.then(pdf => {
@@ -494,22 +636,27 @@ function loadPDF(url, callback) {
       const context = canvas.getContext('2d');
       context.clearRect(0, 0, canvas.width, canvas.height);
       page.render({ canvasContext: context, viewport: viewport }).promise.then(() => {
-        if (callback) callback();
+        if (callback) callback();  // Appelle la fonction fournie une fois le rendu terminé
       });
     });
   });
 }
 
-function selectType(type) { currentType = type; }
+// Définit le type de champ à placer (zone texte, signature, case, etc.)
+function selectType(type) { 
+  currentType = type; 
+}
 
+// Ajoute un nouveau signataire à la liste
 function addSignataire() {
   const email = document.getElementById('new-email').value.trim();
   if (!email) return;
   signataires.push({ id: signataires.length, email });
-  updateSignatairesList();
+  updateSignatairesList(); // Met à jour l'affichage
   document.getElementById('new-email').value = '';
 }
 
+// Met à jour l’affichage de la liste des signataires (radio boutons + couleur)
 function updateSignatairesList() {
   const container = document.getElementById('signataires-list');
   container.innerHTML = "";
@@ -521,24 +668,34 @@ function updateSignatairesList() {
   });
 }
 
+// Lorsqu'on clique sur le PDF, place un champ à la position cliquée
 canvas.addEventListener('click', function(event) {
   if (!currentType) return alert("Choisissez un type.");
+
   let signerId = null;
   let email = null;
+
+  // Si ce n’est pas un champ statique, il faut sélectionner un signataire
   if (currentType !== "statictext") {
     const signerRadio = document.querySelector('input[name="signataire"]:checked');
     if (!signerRadio) return alert("Sélectionnez un signataire.");
     signerId = parseInt(signerRadio.value);
     email = signataires.find(s => s.id === signerId).email;
   }
+
+  // Calcule les coordonnées du clic sur le PDF
   const rect = canvas.getBoundingClientRect();
   const x = (event.clientX - rect.left) / scale;
   const y = (event.clientY - rect.top) / scale;
-  const id = fieldId++;
+  const id = fieldId++; // ID unique pour le champ
+
+  // Définit la couleur selon le signataire (ou bleue pour texte statique)
   let color = "#27348b";
   if (currentType !== "statictext") {
     color = COLORS[signerId % COLORS.length];
   }
+
+  // Crée l’objet champ à insérer
   let field;
   if (currentType === "statictext") {
     const value = prompt("Texte à afficher dans la zone ?");
@@ -547,63 +704,86 @@ canvas.addEventListener('click', function(event) {
   } else {
     field = { id, type: currentType, signer_id: signerId, email: email, x, y, signed: false };
   }
-  fields.push(field);
-  addFieldBoxToPDF(field);
+
+  fields.push(field);            // Ajoute à la liste globale
+  addFieldBoxToPDF(field);      // Affiche visuellement le champ sur le PDF
 });
 
+// Affiche un champ cliquable sur le PDF avec ses styles
 function addFieldBoxToPDF(field) {
   const div = document.createElement('div');
   div.className = 'field-box';
+
+  // Si c’est un champ de texte statique, style différent
   if (field.type === "statictext") {
     div.classList.add('statictext-box');
     div.innerText = field.value;
   } else {
     div.innerText = field.type.toUpperCase();
   }
+
+  // Positionnement du champ sur le PDF (via CSS left/top)
   div.style.left = (field.x * scale) + 'px';
   div.style.top = (field.y * scale) + 'px';
+
+  // Applique la bordure colorée selon le signataire
   let color = "#27348b";
   if (field.type !== "statictext") {
     color = COLORS[field.signer_id % COLORS.length];
   }
   div.style.border = `2px dashed ${color}`;
+
+  // Ajoute un bouton de suppression sur le champ
   const removeBtn = document.createElement('button');
   removeBtn.innerText = '×';
   removeBtn.className = 'remove-btn';
   removeBtn.onclick = function() {
     const index = fields.findIndex(f => f.id === field.id);
     if (index !== -1) fields.splice(index, 1);
-    div.remove();
+    div.remove(); // Supprime l’affichage visuel
   };
   div.appendChild(removeBtn);
-  container.appendChild(div);
-  enableDrag(div, field.id);
+
+  container.appendChild(div);      // Ajoute le champ au PDF
+  enableDrag(div, field.id);      // Rend le champ déplaçable
 }
 
+// Réaffiche tous les champs actuels (utile après chargement ou modification)
 function redrawFields() {
+  // Supprime tous les anciens éléments visuels affichés sur le PDF
   [...container.querySelectorAll('.field-box')].forEach(div => div.remove());
+
+  // Réinsère tous les champs depuis la variable globale "fields"
   fields.forEach(field => addFieldBoxToPDF(field));
 }
 
+// Quand on soumet le formulaire "Lancer le processus de signature"
 document.getElementById('assign-fields-form').onsubmit = function () {
   if (!currentPdf) {
     alert("Aucun PDF sélectionné !");
-    return false;
+    return false; // Bloque l'envoi
   }
+
+  // Vérifie que tous les champs (sauf texte statique) ont un email de signataire
   const missing = fields.filter(f => f.type !== "statictext" && (!f.email || f.email.trim() === ""));
   if (missing.length > 0) {
     alert("Veuillez renseigner l'email pour chaque signataire avant de lancer le processus.");
     return false;
   }
+
+  // Prépare les données à envoyer au backend (JSON des champs + autres infos)
   document.getElementById('fields-json').value = JSON.stringify({ pdf: currentPdf, fields: fields });
   document.getElementById('email-message-hidden').value = document.getElementById('email-message').value;
   document.getElementById('nom-demande-hidden').value = document.getElementById('nom-demande').value;
-  return true;
+  return true; // Envoie autorisé
 };
 
+// Enregistre un template des champs actuels (pour réutilisation)
 function saveTemplate() {
   const name = document.getElementById('template-name').value.trim();
   if (!name || !currentPdf) return alert("Nom ou PDF manquant.");
+
+  // Prépare une version simplifiée des champs (sans emails)
   const templateFields = fields.map(f => {
     if (f.type === "statictext") {
       return { type: f.type, x: f.x, y: f.y, value: f.value };
@@ -611,6 +791,8 @@ function saveTemplate() {
       return { type: f.type, x: f.x, y: f.y, signer_id: f.signer_id };
     }
   });
+
+  // Envoie le template au serveur
   fetch('/save-template', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -626,85 +808,117 @@ function saveTemplate() {
   });
 }
 
+// Charge un template précédemment enregistré
 function loadTemplate() {
   const name = document.getElementById('template-select').value;
+
+  // Appelle le backend pour récupérer les données du template
   fetch('/load-template/' + name)
     .then(res => res.json())
     .then(data => {
-      fields = [];
-      fieldId = 0;
+      fields = [];      // Vide les anciens champs
+      fieldId = 0;      // Réinitialise le compteur
       currentPdf = data.pdf;
       container.style.display = 'block';
+
+      // Charge et affiche le PDF
       loadPDF('/uploads/' + currentPdf, () => {
+        // Supprime les anciens champs visuels
         [...container.querySelectorAll('.field-box')].forEach(div => div.remove());
+
+        // Recrée les champs du template
         data.fields.forEach(field => {
           const id = fieldId++;
           let newField = { ...field, id };
+
+          // Pour les champs signataires, on supprime les données dynamiques
           if (newField.type !== "statictext") {
             newField.email = "";
             delete newField.value;
             delete newField.signed;
           }
+
           fields.push(newField);
           addFieldBoxToPDF(newField);
         });
+
+        // Récupère les IDs uniques des signataires et demande les emails
         const signerIds = [...new Set(fields.filter(f => f.type !== "statictext").map(f => f.signer_id))];
         askForSignatairesEmails(signerIds);
       });
     });
 }
 
-// Nouvelle version de askForSignatairesEmails avec menu déroulant emails enregistrés
+// Demande à l'utilisateur de renseigner les emails des signataires via une fenêtre modale
 function askForSignatairesEmails(signerIds) {
-  signerIds = [...new Set(signerIds)];
+  signerIds = [...new Set(signerIds)];  // Supprime les doublons
   if (signerIds.length === 0) return;
+
   const modalBg = document.getElementById('modal-emails-bg');
   const modalContent = document.getElementById('modal-emails-content');
-  fetch('/get-signers').then(res => res.json()).then(signers => {
-    let html = `<h4>Renseignez les emails des signataires :</h4>`;
-    signerIds.forEach((id, i) => {
-      html += `
-        <label>
-          Signataire ${parseInt(i)+1} (étape ${id+1}) :
-          <input type="email" id="email-sign-${id}" required style="width:60%;">
-          <select id="select-email-sign-${id}" style="width:33%;margin-left:4px;">
-            <option value="">-- Emails enregistrés --</option>
-            ${signers.map(email => `<option value="${email}">${email}</option>`).join('')}
-          </select>
-          <button type="button" class="btn" style="padding:2px 8px;font-size:0.95em;" onclick="useSavedEmail(${id})">Utiliser</button>
-        </label>`;
-    });
-    html += `<button class="btn btn-accent" id="validate-emails">Valider</button>`;
-    modalContent.innerHTML = html;
-    modalBg.style.display = "flex";
 
-    document.getElementById('validate-emails').onclick = function() {
-      let ok = true;
-      let mapping = {};
-      signerIds.forEach(id => {
-        const val = document.getElementById('email-sign-'+id).value.trim();
-        if (!val) ok = false;
-        mapping[id] = val;
+  // Récupère les emails déjà enregistrés pour populater la liste déroulante
+  fetch('/get-signers')
+    .then(res => res.json())
+    .then(signers => {
+      // Construit dynamiquement le contenu HTML du formulaire de saisie des emails
+      let html = `<h4>Renseignez les emails des signataires :</h4>`;
+      signerIds.forEach((id, i) => {
+        html += `
+          <label>
+            Signataire ${parseInt(i)+1} (étape ${id+1}) :
+            <input type="email" id="email-sign-${id}" required style="width:60%;">
+            <select id="select-email-sign-${id}" style="width:33%;margin-left:4px;">
+              <option value="">-- Emails enregistrés --</option>
+              ${signers.map(email => `<option value="${email}">${email}</option>`).join('')}
+            </select>
+            <button type="button" class="btn" style="padding:2px 8px;font-size:0.95em;" onclick="useSavedEmail(${id})">Utiliser</button>
+          </label>`;
       });
-      if (!ok) return alert("Veuillez renseigner tous les emails.");
-      fields.forEach(f => {
-        if (f.type !== "statictext" && mapping[f.signer_id] !== undefined) {
-          f.email = mapping[f.signer_id];
-        }
-      });
-      signerIds.forEach((id, idx) => {
-        let sig = signataires.find(s => s.id === id);
-        if (sig) {
-          sig.email = mapping[id];
-        } else {
-          signataires.push({ id: id, email: mapping[id] });
-        }
-      });
-      modalBg.style.display = "none";
-      alert("Emails enregistrés pour les signataires.");
-    }
-  });
+
+      html += `<button class="btn btn-accent" id="validate-emails">Valider</button>`;
+
+      modalContent.innerHTML = html;
+      modalBg.style.display = "flex";  // Affiche la modale
+
+      // Action lorsqu'on clique sur "Valider"
+      document.getElementById('validate-emails').onclick = function() {
+        let ok = true;
+        let mapping = {};  // Pour lier chaque ID de signataire à son email
+
+        // Vérifie que tous les champs sont remplis
+        signerIds.forEach(id => {
+          const val = document.getElementById('email-sign-'+id).value.trim();
+          if (!val) ok = false;
+          mapping[id] = val;
+        });
+
+        if (!ok) return alert("Veuillez renseigner tous les emails.");
+
+        // Affecte les emails à chaque champ concerné
+        fields.forEach(f => {
+          if (f.type !== "statictext" && mapping[f.signer_id] !== undefined) {
+            f.email = mapping[f.signer_id];
+          }
+        });
+
+        // Met à jour la liste globale des signataires
+        signerIds.forEach((id, idx) => {
+          let sig = signataires.find(s => s.id === id);
+          if (sig) {
+            sig.email = mapping[id];
+          } else {
+            signataires.push({ id: id, email: mapping[id] });
+          }
+        });
+
+        modalBg.style.display = "none";
+        alert("Emails enregistrés pour les signataires.");
+      };
+    });
 }
+
+// Permet de remplir automatiquement l'input email avec un email préenregistré
 function useSavedEmail(id) {
   const sel = document.getElementById('select-email-sign-' + id);
   const input = document.getElementById('email-sign-' + id);
@@ -712,26 +926,42 @@ function useSavedEmail(id) {
 }
 window.useSavedEmail = useSavedEmail;
 
+// Rend les champs (zones de texte/signature) déplaçables sur le PDF
 function enableDrag(element, id) {
   let offsetX, offsetY;
+
   element.onmousedown = function (event) {
+    // Calcule l'écart entre le clic et le coin supérieur gauche de l'élément
     offsetX = event.clientX - parseInt(element.style.left);
     offsetY = event.clientY - parseInt(element.style.top);
+
+    // Fonction appelée à chaque mouvement de souris
     function moveAt(e) {
       const x = (e.clientX - offsetX) / scale;
       const y = (e.clientY - offsetY) / scale;
       element.style.left = (x * scale) + 'px';
       element.style.top = (y * scale) + 'px';
+
+      // Met à jour la position dans la structure "fields"
       const updated = fields.find(f => f.id === id);
-      if (updated) { updated.x = x; updated.y = y; }
+      if (updated) {
+        updated.x = x;
+        updated.y = y;
+      }
     }
+
+    // Active le déplacement
     function onMouseMove(e) { moveAt(e); }
     document.addEventListener('mousemove', onMouseMove);
+
+    // Arrête le déplacement quand on relâche le clic
     document.onmouseup = function () {
       document.removeEventListener('mousemove', onMouseMove);
       document.onmouseup = null;
     };
   };
+
+  // Empêche le comportement par défaut de "glisser"
   element.ondragstart = () => false;
 }
 </script>
