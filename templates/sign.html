@@ -3,13 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <title>Signature du document - TPW Nord Concassage</title>
+
+  <!-- Inclusion de la bibliothèque PDF.js utilisée pour afficher le PDF sur un canvas -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+
+  <!-- Rend la page responsive sur les écrans mobiles -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Importation des polices personnalisées Montserrat et Roboto depuis Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+
   <style>
-    body { font-family: 'Roboto', Arial, sans-serif; background: #f4f4f4; padding: 20px; }
-    .pdf-wrapper { position: relative; display: inline-block; }
-    canvas { border: 1px solid #ccc; background: #fff; }
+    /* Style général du body */
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+
+    /* Positionnement du canvas PDF */
+    .pdf-wrapper {
+      position: relative;
+      display: inline-block;
+    }
+
+    /* Bordure autour du canvas */
+    canvas {
+      border: 1px solid #ccc;
+      background: #fff;
+    }
+
+    /* Style de base des zones interactives (texte, signature, checkbox...) */
     .zone {
       position: absolute;
       border: 2px dashed #FF5733;
@@ -23,6 +47,8 @@
       line-height: 1 !important;
       transition: box-shadow .1s;
     }
+
+    /* Apparence d'une zone déjà signée */
     .zone.signed {
       border: 2px solid #33C964;
       background: rgba(240,255,240,0.7);
@@ -30,11 +56,16 @@
       cursor: not-allowed;
       pointer-events: none;
     }
+
+    /* Apparence d'une zone en cours de modification */
     .zone.editing {
       box-shadow: 0 0 12px #338DFF77;
       z-index: 100;
     }
-    .zone input, .zone textarea {
+
+    /* Style des champs texte dans les zones */
+    .zone input,
+    .zone textarea {
       width: 100%;
       height: 100%;
       font-size: 1em;
@@ -45,19 +76,26 @@
       outline: none;
       box-sizing: border-box;
     }
+
+    /* Canvas utilisé pour dessiner une signature manuelle dans la zone */
     .zone .inline-canvas {
-      width: 100%; height: 100%;
+      width: 100%;
+      height: 100%;
       border-radius: 3px;
       background: #f8fafb;
       border: 1.5px solid #338DFF;
       display: block;
     }
+
+    /* Conteneur des boutons liés à la signature (effacer, valider, etc.) */
     .zone .sig-actions {
       display: flex;
       gap: 6px;
       justify-content: flex-end;
       margin-top: 2px;
     }
+
+    /* Boutons de la zone de signature */
     .zone .sig-actions button {
       font-size: 0.9em;
       padding: 2px 8px;
@@ -67,12 +105,16 @@
       color: #fff;
       cursor: pointer;
     }
+
+    /* Case à cocher dans sa forme finale */
     .checkbox-real {
       width: 20px;
       height: 20px;
       vertical-align: middle;
       accent-color: #FF5733;
     }
+
+    /* Case à cocher en mode édition (plus grande et cliquable) */
     .checkbox-editing {
       width: 38px !important;
       height: 38px !important;
@@ -80,6 +122,8 @@
       margin-right: 14px;
       margin-left: 4px;
     }
+
+    /* Bouton pour valider une checkbox en mode édition */
     .checkbox-editing-btn {
       font-size: 1.12em;
       padding: 8px 18px;
@@ -90,16 +134,21 @@
       cursor: pointer;
       margin-left: 6px;
     }
+
+    /* Adaptation du style des checkboxes et boutons pour les petits écrans */
     @media (max-width: 600px) {
       .checkbox-editing {
         width: 46px !important;
         height: 46px !important;
       }
+
       .checkbox-editing-btn {
         font-size: 1.2em;
         padding: 12px 20px;
       }
     }
+
+    /* Message d'information précédent le champ à remplir */
     .previous-message {
       background: #eef;
       border-left: 4px solid #338DFF;
@@ -108,10 +157,14 @@
       margin-bottom: 10px;
       max-width: 500px;
     }
+
+    /* Zone contenant le message final avant envoi */
     .msg-final-section {
       margin: 24px 0 6px 0;
       max-width: 500px;
     }
+
+    /* Bouton principal pour valider le document */
     #submit-btn {
       display: inline-block;
       margin-top: 18px;
@@ -127,14 +180,24 @@
       transition: background .18s;
       box-shadow: 0 1px 2px #0002;
     }
-    #submit-btn:active, #submit-btn:hover {
+
+    /* Changement de style du bouton au survol ou clic */
+    #submit-btn:active,
+    #submit-btn:hover {
       background: #0f3152;
     }
+
+    /* Ajustements responsive pour les écrans < 740px */
     @media (max-width: 740px) {
-      #pdf-canvas, .pdf-wrapper { width: 98vw !important; height: auto !important; max-width: 100vw; }
+      #pdf-canvas,
+      .pdf-wrapper {
+        width: 98vw !important;
+        height: auto !important;
+        max-width: 100vw;
+      }
     }
 
-    /* MODALE SIGNATURE */
+    /* Style de la fenêtre modale pour signer manuellement */
     .signature-modal {
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
@@ -144,6 +207,8 @@
       align-items: center;
       justify-content: center;
     }
+
+    /* Contenu central de la modale */
     .signature-modal-content {
       background: #fff;
       border-radius: 12px;
@@ -158,12 +223,16 @@
       flex-direction: column;
       align-items: center;
     }
+
+    /* Titre de la modale */
     .signature-modal h3 {
       margin: 0 0 12px 0;
       font-size: 1.18em;
       color: #144372;
       font-family: Montserrat,sans-serif;
     }
+
+    /* Canvas pour la signature à dessiner dans la modale */
     .signature-modal-canvas {
       width: 92vw;
       max-width: 380px;
@@ -177,6 +246,8 @@
       margin: 0 0 7px 0;
       touch-action: none;
     }
+
+    /* Boutons dans la modale de signature (valider, annuler) */
     .signature-modal-actions {
       display: flex;
       gap: 10px;
@@ -184,6 +255,7 @@
       margin-top: 7px;
       width: 100%;
     }
+
     .signature-modal-actions button {
       font-size: 1em;
       padding: 6px 18px;
@@ -193,13 +265,17 @@
       color: #fff;
       cursor: pointer;
     }
+
     .signature-modal-actions button.cancel {
       background: #aaa;
       color: #fff;
     }
+
     .signature-modal-actions button:active {
       background: #0f3152;
     }
+
+    /* Affichage des textes statiques en surimpression (non éditables) */
     .statictext-overlay {
       font-family: 'Roboto', Arial, sans-serif;
       background: transparent;
@@ -214,85 +290,104 @@
   </style>
 </head>
 <body>
+  <!-- Titre principal de la page -->
   <h2>Signature du document</h2>
+
+  <!-- Conteneur du PDF affiché sous forme de canvas -->
   <div class="pdf-wrapper" id="pdf-container" style="width: 100%; max-width: 100vw;">
     <canvas id="pdf-canvas"></canvas>
   </div>
 
+  <!-- Affichage conditionnel du message du signataire précédent (injecté côté serveur avec Jinja) -->
   {% if previous_message %}
     <div class="previous-message">
       <strong>Message du signataire précédent&nbsp;:</strong><br>
       {{ previous_message }}
     </div>
   {% endif %}
+
+  <!-- Zone pour écrire un message à destination du signataire suivant -->
   <div class="msg-final-section">
     <label for="message-final"><strong>Message au prochain signataire (optionnel) :</strong></label><br>
     <textarea id="message-final" rows="3" cols="50" placeholder="Un commentaire pour le prochain signataire…"></textarea>
   </div>
+
+  <!-- Bouton pour valider toutes les zones remplies par ce signataire -->
   <button id="submit-btn">Valider toutes mes zones et envoyer</button>
 
-<!-- SIGNATURE MODAL (hidden by default) -->
-<div id="signature-modal" class="signature-modal" style="display:none;">
-  <div class="signature-modal-content">
-    <h3>Signer dans la zone ci-dessous</h3>
-    <canvas id="signature-modal-canvas" class="signature-modal-canvas"></canvas>
-    <div class="signature-modal-actions">
-      <button id="modal-clear">Effacer</button>
-      <button id="modal-validate">Valider</button>
-      <button id="modal-cancel" class="cancel">Annuler</button>
+  <!-- MODALE de signature manuscrite (masquée par défaut avec display:none) -->
+  <div id="signature-modal" class="signature-modal" style="display:none;">
+    <div class="signature-modal-content">
+      <h3>Signer dans la zone ci-dessous</h3>
+      <!-- Canvas pour dessiner la signature à la souris ou au doigt -->
+      <canvas id="signature-modal-canvas" class="signature-modal-canvas"></canvas>
+      <div class="signature-modal-actions">
+        <!-- Boutons d'action de la modale -->
+        <button id="modal-clear">Effacer</button>
+        <button id="modal-validate">Valider</button>
+        <button id="modal-cancel" class="cancel">Annuler</button>
+      </div>
     </div>
   </div>
-</div>
 
 <script>
-const sessionId = "{{ session_id }}";
-const step = {{ step }};
-const fields = {{ fields_all | tojson }};
-const currentSignerId = {{ signer_id }};
-let completed = fields.map(f => f.signed);
+  // Variables injectées depuis le serveur Flask (via Jinja) pour cette session
+  const sessionId = "{{ session_id }}";
+  const step = {{ step }};
+  const fields = {{ fields_all | tojson }};
+  const currentSignerId = {{ signer_id }};
 
-const canvas = document.getElementById('pdf-canvas');
-const container = document.getElementById('pdf-container');
-const submitBtn = document.getElementById('submit-btn');
+  // Tableau indiquant quelles zones ont déjà été signées (true/false par champ)
+  let completed = fields.map(f => f.signed);
 
-let pdf = null;
-let pdfPage = null;
-let pdfWidth = 0;
-let pdfHeight = 0;
-let currentScale = 1;
+  // Récupération des éléments DOM nécessaires à l'affichage et l'interaction
+  const canvas = document.getElementById('pdf-canvas');
+  const container = document.getElementById('pdf-container');
+  const submitBtn = document.getElementById('submit-btn');
 
-function renderPDF() {
-  pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdfDoc => {
-    pdf = pdfDoc;
-    return pdf.getPage(1);
-  }).then(page => {
-    pdfPage = page;
-    // Taille PDF réelle
-    const viewport = page.getViewport({ scale: 1 });
-    pdfWidth = viewport.width;
-    pdfHeight = viewport.height;
+  // Variables utilisées pour stocker le PDF et sa première page
+  let pdf = null;
+  let pdfPage = null;
+  let pdfWidth = 0;
+  let pdfHeight = 0;
+  let currentScale = 1;
 
-    // Container responsif : largeur max possible
-    const containerW = container.offsetWidth;
-    currentScale = containerW / pdfWidth;
+  // Fonction principale qui charge et affiche le PDF dans le canvas
+  function renderPDF() {
+    pdfjsLib.getDocument("/uploads/{{ pdf }}").promise.then(pdfDoc => {
+      pdf = pdfDoc;
+      return pdf.getPage(1); // Récupère la première page du PDF
+    }).then(page => {
+      pdfPage = page;
 
-    // Application du scale dynamique
-    const finalViewport = page.getViewport({ scale: currentScale });
-    canvas.width = finalViewport.width;
-    canvas.height = finalViewport.height;
-    canvas.style.width = finalViewport.width + "px";
-    canvas.style.height = finalViewport.height + "px";
+      // Obtient les dimensions réelles de la page
+      const viewport = page.getViewport({ scale: 1 });
+      pdfWidth = viewport.width;
+      pdfHeight = viewport.height;
 
-    const ctx = canvas.getContext('2d');
-    page.render({ canvasContext: ctx, viewport: finalViewport }).promise.then(renderZones);
-  });
-}
+      // Calcule la largeur à utiliser en fonction de la taille du container visible
+      const containerW = container.offsetWidth;
+      currentScale = containerW / pdfWidth;
+
+      // Applique l’échelle calculée pour que le PDF s’adapte à l’écran
+      const finalViewport = page.getViewport({ scale: currentScale });
+      canvas.width = finalViewport.width;
+      canvas.height = finalViewport.height;
+      canvas.style.width = finalViewport.width + "px";
+      canvas.style.height = finalViewport.height + "px";
+
+      // Dessine le PDF sur le canvas
+      const ctx = canvas.getContext('2d');
+      page.render({ canvasContext: ctx, viewport: finalViewport }).promise.then(renderZones);
+    });
+  }
 
 function renderZones() {
+  // Nettoie d'abord toutes les anciennes zones et textes statiques affichés
   document.querySelectorAll('.zone').forEach(z => z.remove());
   document.querySelectorAll('.statictext-overlay').forEach(z => z.remove());
 
-  // 1. Affiche TOUS les statictext en overlay, pour tout le monde
+  // Affiche d’abord tous les champs de type texte statique (non interactifs)
   fields.forEach((f, index) => {
     if (f.type === 'statictext') {
       const div = document.createElement('div');
@@ -305,24 +400,29 @@ function renderZones() {
     }
   });
 
-  // 2. Affiche les zones éditables comme avant
+  // Affiche ensuite les zones interactives (texte, signature, case à cocher) à compléter
   fields.forEach((f, index) => {
+    // Ignore les textes statiques et les zones d'autres signataires
     if (f.type === 'statictext') return;
     if (f.signer_id != currentSignerId) return;
 
+    // Crée un élément div pour représenter la zone
     const zone = document.createElement('div');
     zone.className = 'zone';
-    if (f.signed) zone.classList.add('signed');
-    // Utilise le scale dynamique pour toutes les coordonnées !
+    if (f.signed) zone.classList.add('signed'); // Marque comme remplie si déjà signé
+
+    // Positionne et dimensionne la zone en fonction du scale et des données
     zone.style.left   = (f.x * currentScale) + "px";
     zone.style.top    = (f.y * currentScale) + "px";
     zone.style.width  = ((f.w || 100) * currentScale) + "px";
     zone.style.height = ((f.h || 40) * currentScale) + "px";
+
+    // Stocke des infos utiles dans les attributs HTML
     zone.dataset.type  = f.type;
     zone.dataset.index = index;
     zone.dataset.signer_id = f.signer_id;
 
-    // Affichage valeur si déjà signée (champ du signataire courant uniquement)
+    // Si la zone est déjà signée, affiche sa valeur (texte, signature image ou case cochée)
     if (f.signed) {
       if (f.type === 'text') {
         zone.textContent = f.value;
@@ -330,7 +430,8 @@ function renderZones() {
       if (f.type === 'signature') {
         let img = document.createElement('img');
         img.src = f.value;
-        img.style.width = "100%"; img.style.height = "100%";
+        img.style.width = "100%";
+        img.style.height = "100%";
         img.style.objectFit = "contain";
         zone.appendChild(img);
       }
@@ -341,59 +442,68 @@ function renderZones() {
       return;
     }
 
-    // Non signée, zone éditable
+    // Si la zone est à remplir, ajoute un événement clic pour l’ouvrir
     if (f.signer_id == currentSignerId) {
       zone.addEventListener('click', function(e) {
         e.stopPropagation();
         if(f.type === "signature") {
-            openSignatureModal(f, index);
-        }
-        else {
-            startEditZone(zone, f, index);
+          openSignatureModal(f, index); // Ouvre la modale de signature
+        } else {
+          startEditZone(zone, f, index); // Permet de saisir du texte ou cocher
         }
       });
     }
+
+    // Texte affiché selon le type de champ
     if (f.type === "text") zone.textContent = "Zone de texte";
     if (f.type === "signature") zone.textContent = "Signature";
     if (f.type === "checkbox") zone.textContent = "☐";
-    container.appendChild(zone);
+
+    container.appendChild(zone); // Ajoute la zone à la page
   });
 }
 
-// -------- MODALE DE SIGNATURE --------
 function openSignatureModal(field, index) {
+  // Récupération des éléments DOM de la modale
   const modal = document.getElementById('signature-modal');
   const modalCanvas = document.getElementById('signature-modal-canvas');
   const clearBtn = document.getElementById('modal-clear');
   const validateBtn = document.getElementById('modal-validate');
   const cancelBtn = document.getElementById('modal-cancel');
 
-  // Taille responsive
+  // Définit la taille du canvas selon la taille de l’écran
   let w = Math.min(window.innerWidth * 0.88, 380);
   let h = Math.max(120, Math.min(200, window.innerHeight * 0.23));
   modalCanvas.width = w;
   modalCanvas.height = h;
 
+  // Prépare le contexte de dessin
   let ctx = modalCanvas.getContext("2d");
-  ctx.clearRect(0,0,w,h);
+  ctx.clearRect(0, 0, w, h);
 
   let drawing = false, last = null;
 
+  // Récupère la position du curseur (souris ou doigt) sur le canvas
   function getXY(e, can, isTouch) {
-      const rect = can.getBoundingClientRect();
-      let x, y;
-      if (isTouch && e.touches && e.touches.length === 1) {
-        x = (e.touches[0].clientX - rect.left) * (can.width / rect.width);
-        y = (e.touches[0].clientY - rect.top) * (can.height / rect.height);
-      } else if (e.offsetX !== undefined) {
-        x = e.offsetX * (can.width / rect.width);
-        y = e.offsetY * (can.height / rect.height);
-      }
-      return {x, y};
+    const rect = can.getBoundingClientRect();
+    let x, y;
+    if (isTouch && e.touches && e.touches.length === 1) {
+      x = (e.touches[0].clientX - rect.left) * (can.width / rect.width);
+      y = (e.touches[0].clientY - rect.top) * (can.height / rect.height);
+    } else if (e.offsetX !== undefined) {
+      x = e.offsetX * (can.width / rect.width);
+      y = e.offsetY * (can.height / rect.height);
+    }
+    return {x, y};
   }
 
-  // Events
-  function pointerDown(e) { drawing = true; last = getXY(e, modalCanvas, e.type.startsWith('touch')); }
+  // Début du dessin (quand on clique ou touche)
+  function pointerDown(e) {
+    drawing = true;
+    last = getXY(e, modalCanvas, e.type.startsWith('touch'));
+  }
+
+  // Déplacement du curseur : trace une ligne entre deux points
   function pointerMove(e) {
     if (!drawing) return;
     let xy = getXY(e, modalCanvas, e.type.startsWith('touch'));
@@ -404,8 +514,13 @@ function openSignatureModal(field, index) {
     last = xy;
     e.preventDefault();
   }
-  function pointerUpCancel(e) { drawing = false; }
 
+  // Fin du dessin
+  function pointerUpCancel(e) {
+    drawing = false;
+  }
+
+  // Écouteurs pour gérer la signature à la souris et au tactile
   modalCanvas.addEventListener('mousedown', pointerDown);
   modalCanvas.addEventListener('mousemove', pointerMove);
   modalCanvas.addEventListener('mouseup', pointerUpCancel);
@@ -415,18 +530,28 @@ function openSignatureModal(field, index) {
   modalCanvas.addEventListener('touchend', pointerUpCancel);
   modalCanvas.addEventListener('touchcancel', pointerUpCancel);
 
-  // Effacer
+  // Efface le dessin
   clearBtn.onclick = function() {
-    ctx.clearRect(0,0,modalCanvas.width,modalCanvas.height);
+    ctx.clearRect(0, 0, modalCanvas.width, modalCanvas.height);
   };
 
-  // Valider
+  // Valide la signature et l’envoie au backend
   validateBtn.onclick = function() {
-    let imgData = ctx.getImageData(0,0,modalCanvas.width,modalCanvas.height).data;
+    // Vérifie que le canvas n'est pas vide
+    let imgData = ctx.getImageData(0, 0, modalCanvas.width, modalCanvas.height).data;
     let isBlank = true;
-    for(let i=0;i<imgData.length;i++) if(imgData[i]!==0) { isBlank=false; break;}
-    if (isBlank) { alert("Merci de signer dans la zone !"); return; }
+    for (let i = 0; i < imgData.length; i++) {
+      if (imgData[i] !== 0) { isBlank = false; break; }
+    }
+    if (isBlank) {
+      alert("Merci de signer dans la zone !");
+      return;
+    }
+
+    // Convertit le dessin en image base64
     let dataURL = modalCanvas.toDataURL("image/png");
+
+    // Envoie les données de la signature au serveur
     fetch('/fill-field', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -442,6 +567,7 @@ function openSignatureModal(field, index) {
         html_height_px: canvas.height
       })
     }).then(() => {
+      // Met à jour le champ en local après validation
       fields[index].value = dataURL;
       fields[index].signed = true;
       modal.style.display = "none";
@@ -451,12 +577,13 @@ function openSignatureModal(field, index) {
     });
   };
 
-  // Annuler
+  // Ferme la modale si l'utilisateur clique sur "Annuler"
   cancelBtn.onclick = function() {
     modal.style.display = "none";
     cleanup();
   };
 
+  // Nettoie les écouteurs une fois la modale fermée
   function cleanup() {
     modalCanvas.removeEventListener('mousedown', pointerDown);
     modalCanvas.removeEventListener('mousemove', pointerMove);
@@ -468,34 +595,41 @@ function openSignatureModal(field, index) {
     modalCanvas.removeEventListener('touchcancel', pointerUpCancel);
   }
 
+  // Affiche enfin la modale de signature
   modal.style.display = "flex";
 }
 
-// -------- FIN MODALE SIGNATURE --------
-
 function startEditZone(zone, field, index) {
-  // Évite double édition
+  // Empêche d'éditer deux fois une même zone (évite doublons visuels et bugs)
   if (zone.classList.contains('editing')) return;
-  // Vire le texte
+
+  // Vide le contenu visuel de la zone
   zone.innerHTML = "";
   zone.classList.add('editing');
-  // Selon le type
+
+  // Cas 1 : zone de texte à remplir
   if (field.type === "text") {
     let input = document.createElement('input');
     input.type = "text";
     input.value = field.value || "";
     input.placeholder = "Entrez le texte…";
     input.autofocus = true;
+
+    // Gère les touches clavier pendant la saisie
     input.onkeydown = function(e) {
-      if (e.key === "Enter") validateInlineText();
-      if (e.key === "Escape") cancelInlineEdit();
+      if (e.key === "Enter") validateInlineText();    // Valide avec "Entrée"
+      if (e.key === "Escape") cancelInlineEdit();      // Annule avec "Échap"
     };
-    input.onblur = function() { validateInlineText(); };
+    input.onblur = function() { validateInlineText(); }; // Valide automatiquement en quittant le champ
     zone.appendChild(input);
     input.focus();
+
+    // Fonction de validation du texte saisi
     function validateInlineText() {
       let val = input.value.trim();
       if (!val) { cancelInlineEdit(); return; }
+
+      // Envoie au serveur la valeur remplie
       fetch('/fill-field', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -511,23 +645,35 @@ function startEditZone(zone, field, index) {
           html_height_px: canvas.height
         })
       }).then(() => {
+        // Met à jour les données locales après validation
         fields[index].value = val;
         fields[index].signed = true;
-        renderZones();
-        checkCompletion();
+        renderZones();         // Réaffiche toutes les zones
+        checkCompletion();     // Vérifie si tout est rempli
       });
     }
-    function cancelInlineEdit() { renderZones(); }
+
+    // Annule l’édition sans enregistrer
+    function cancelInlineEdit() {
+      renderZones();
+    }
   }
+
+  // Cas 2 : zone de type case à cocher
   else if (field.type === "checkbox") {
     let checkbox = document.createElement('input');
     checkbox.type = "checkbox";
     checkbox.className = "checkbox-real checkbox-editing";
+
+    // Pré-coche si le champ était déjà signé
     checkbox.checked = field.value === true || field.value === "true" || field.value === "on";
-    // Ajoute un bouton "Valider" pour valider même si non coché
+
+    // Crée un bouton de validation à côté
     let validerBtn = document.createElement('button');
     validerBtn.textContent = "Valider";
     validerBtn.className = "checkbox-editing-btn";
+
+    // Lors du clic sur "Valider", envoie la valeur au serveur
     validerBtn.onclick = function() {
       fetch('/fill-field', {
         method: 'POST',
@@ -536,7 +682,7 @@ function startEditZone(zone, field, index) {
           session_id: sessionId,
           step: step,
           field_index: index,
-          value: checkbox.checked, // true ou false !
+          value: checkbox.checked,
           x_px: field.x,
           y_px: field.y,
           field_height: field.h || 15,
@@ -550,7 +696,8 @@ function startEditZone(zone, field, index) {
         checkCompletion();
       });
     };
-    // Centrer horizontalement sur mobile
+
+    // Mise en page responsive : centrage vertical et horizontal
     let wrap = document.createElement('div');
     wrap.style.display = 'flex';
     wrap.style.alignItems = 'center';
@@ -560,30 +707,38 @@ function startEditZone(zone, field, index) {
     zone.appendChild(wrap);
   }
 }
-
 function checkCompletion() {
+  // Filtre les champs à remplir par ce signataire (hors textes statiques)
   const mustSign = fields.filter(f => f.signer_id == currentSignerId && f.type !== 'statictext');
+
+  // Vérifie si tous les champs obligatoires ont été remplis
   const allDone = mustSign.every(f => f.signed);
+
+  // Affiche le bouton "Valider toutes mes zones" uniquement si tout est signé
   submitBtn.style.display = allDone ? 'inline-block' : 'none';
 }
-
+// Quand on clique sur le bouton de validation finale
 submitBtn.onclick = () => {
   const finalMessage = document.getElementById('message-final').value;
+
+  // Envoie au backend pour finaliser cette étape de signature
   fetch('/finalise-signature', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, message_final: finalMessage })
+    body: JSON.stringify({
+      session_id: sessionId,
+      message_final: finalMessage
+    })
   }).then(() => {
     alert("Signature finalisée. Vous pouvez fermer cette page.");
-    submitBtn.disabled = true;
+    submitBtn.disabled = true;  // Empêche double clic
   });
 };
-
-// Lors d'un resize, on redessine le PDF ET les zones en recalculant le scale
+// Quand on redimensionne la fenêtre, on re-render le PDF et ses zones
 window.addEventListener('resize', function() {
-  if (pdfPage) renderPDF();
+  if (pdfPage) renderPDF();  // Redessine si une page est bien chargée
 });
-
+// Lance le rendu initial du PDF quand la page est chargée
 renderPDF();
 </script>
 </body>
